@@ -1,0 +1,242 @@
+[
+  {
+    "id": "software-developer",
+    "title": "Software Developer",
+    "onetCode": "15-1252.00",
+    "field": "Computer Science",
+    "summary": "Design, build, and maintain software applications that solve problems for users and organizations.",
+    "skills": ["Programming", "Debugging", "Software design", "Collaboration"]
+  },
+  {
+    "id": "web-developer",
+    "title": "Web Developer",
+    "onetCode": "15-1254.00",
+    "field": "Computer Science",
+    "summary": "Create and update websites and web applications, including layout, functionality, and performance.",
+    "skills": ["HTML and CSS", "JavaScript", "Responsive design", "Web accessibility"]
+  },
+  {
+    "id": "data-scientist",
+    "title": "Data Scientist",
+    "onetCode": "15-2051.00",
+    "field": "Computer Science",
+    "summary": "Analyze large datasets with statistics and machine learning to answer questions and guide decisions.",
+    "skills": ["Statistics", "Python", "Data visualization", "Machine learning"]
+  },
+  {
+    "id": "information-security-analyst",
+    "title": "Information Security Analyst",
+    "onetCode": "15-1212.00",
+    "field": "Computer Science",
+    "summary": "Protect computer systems and networks by finding risks and putting safeguards in place.",
+    "skills": ["Network security", "Risk assessment", "Incident response", "Security tools"]
+  },
+  {
+    "id": "database-administrator",
+    "title": "Database Administrator",
+    "onetCode": "15-1242.00",
+    "field": "Computer Science",
+    "summary": "Store, organize, and secure an organization's data so applications and people can use it reliably.",
+    "skills": ["SQL", "Database design", "Backup and recovery", "Data security"]
+  },
+  {
+    "id": "ux-designer",
+    "title": "UX Designer",
+    "onetCode": "15-1255.00",
+    "field": "Design",
+    "summary": "Shape how people move through digital products so interfaces are clear, usable, and satisfying.",
+    "skills": ["User research", "Wireframing", "Prototyping", "Usability testing"]
+  },
+  {
+    "id": "graphic-designer",
+    "title": "Graphic Designer",
+    "onetCode": "27-1024.00",
+    "field": "Design",
+    "summary": "Create visual designs such as logos, layouts, and marketing graphics for print and digital use.",
+    "skills": ["Visual design", "Typography", "Adobe Creative Suite", "Brand identity"]
+  },
+  {
+    "id": "industrial-designer",
+    "title": "Industrial Designer",
+    "onetCode": "27-1021.00",
+    "field": "Design",
+    "summary": "Design the form and function of physical products so they are useful, manufacturable, and appealing.",
+    "skills": ["Sketching", "3D modeling", "Materials knowledge", "User-centered design"]
+  },
+  {
+    "id": "animator",
+    "title": "Animator",
+    "onetCode": "27-1014.00",
+    "field": "Design",
+    "summary": "Bring characters, motion graphics, and visual effects to life for film, games, and digital media.",
+    "skills": ["Animation", "Storytelling", "Motion software", "Visual composition"]
+  },
+  {
+    "id": "market-research-analyst",
+    "title": "Market Research Analyst",
+    "onetCode": "13-1161.00",
+    "field": "Business",
+    "summary": "Study what customers want and how markets are changing so organizations can plan products and campaigns.",
+    "skills": ["Survey design", "Data analysis", "Market trends", "Report writing"]
+  },
+  {
+    "id": "product-manager",
+    "title": "Product Manager",
+    "onetCode": "15-1299.09",
+    "field": "Business",
+    "summary": "Decide what a product should do next and coordinate design, engineering, and business work to ship it.",
+    "skills": ["Prioritization", "Stakeholder communication", "Roadmapping", "User needs analysis"]
+  },
+  {
+    "id": "accountant",
+    "title": "Accountant",
+    "onetCode": "13-2011.00",
+    "field": "Business",
+    "summary": "Prepare and review financial records so organizations understand their money and meet reporting rules.",
+    "skills": ["Financial reporting", "Bookkeeping", "Spreadsheets", "Attention to detail"]
+  },
+  {
+    "id": "management-analyst",
+    "title": "Management Analyst",
+    "onetCode": "13-1111.00",
+    "field": "Business",
+    "summary": "Study how an organization works and recommend practical ways to improve its operations.",
+    "skills": ["Problem solving", "Process analysis", "Presentation", "Business research"]
+  },
+  {
+    "id": "human-resources-specialist",
+    "title": "Human Resources Specialist",
+    "onetCode": "13-1071.00",
+    "field": "Business",
+    "summary": "Recruit employees and support hiring, workplace policies, and day-to-day people operations.",
+    "skills": ["Recruiting", "Interviewing", "Employment policy", "Interpersonal communication"]
+  },
+  {
+    "id": "counselor",
+    "title": "Counselor",
+    "onetCode": "21-1014.00",
+    "field": "Psychology",
+    "summary": "Help people work through emotional, behavioral, and life challenges through counseling and support plans.",
+    "skills": ["Active listening", "Empathy", "Assessment", "Treatment planning"]
+  },
+  {
+    "id": "clinical-psychologist",
+    "title": "Clinical Psychologist",
+    "onetCode": "19-3033.00",
+    "field": "Psychology",
+    "summary": "Assess and treat mental, emotional, and behavioral conditions using psychological science.",
+    "skills": ["Psychological assessment", "Therapy", "Research methods", "Ethical practice"]
+  },
+  {
+    "id": "school-psychologist",
+    "title": "School Psychologist",
+    "onetCode": "19-3034.00",
+    "field": "Psychology",
+    "summary": "Support students' learning and mental health by assessing needs and working with families and schools.",
+    "skills": ["Student assessment", "Counseling", "Collaboration", "Learning supports"]
+  },
+  {
+    "id": "industrial-organizational-psychologist",
+    "title": "Industrial-Organizational Psychologist",
+    "onetCode": "19-3032.00",
+    "field": "Psychology",
+    "summary": "Apply psychology to the workplace to improve hiring, teamwork, motivation, and job design.",
+    "skills": ["Workplace research", "Data analysis", "Assessment design", "Organizational consulting"]
+  },
+  {
+    "id": "social-media-specialist",
+    "title": "Social Media Specialist",
+    "onetCode": "27-3031.00",
+    "field": "Communications",
+    "summary": "Plan and publish social content that builds an organization's public voice and audience engagement.",
+    "skills": ["Content creation", "Community management", "Social analytics", "Brand voice"]
+  },
+  {
+    "id": "journalist",
+    "title": "Journalist",
+    "onetCode": "27-3023.00",
+    "field": "Communications",
+    "summary": "Research, report, and write news stories that inform the public about events and issues.",
+    "skills": ["Reporting", "Interviewing", "Writing", "Fact-checking"]
+  },
+  {
+    "id": "technical-writer",
+    "title": "Technical Writer",
+    "onetCode": "27-3042.00",
+    "field": "Communications",
+    "summary": "Turn complex technical information into clear instructions, guides, and documentation.",
+    "skills": ["Technical writing", "Information design", "Editing", "Subject research"]
+  },
+  {
+    "id": "editor",
+    "title": "Editor",
+    "onetCode": "27-3041.00",
+    "field": "Communications",
+    "summary": "Review and revise writing so publications are accurate, clear, and ready for an audience.",
+    "skills": ["Copy editing", "Story structure", "Style and grammar", "Editorial judgment"]
+  },
+  {
+    "id": "biologist",
+    "title": "Biologist",
+    "onetCode": "19-1029.04",
+    "field": "Science",
+    "summary": "Study living organisms and biological systems through observation, experiments, and data.",
+    "skills": ["Laboratory methods", "Scientific method", "Data analysis", "Scientific writing"]
+  },
+  {
+    "id": "chemist",
+    "title": "Chemist",
+    "onetCode": "19-2031.00",
+    "field": "Science",
+    "summary": "Investigate the composition and behavior of substances and develop or test chemical products.",
+    "skills": ["Chemical analysis", "Lab technique", "Instrumentation", "Safety practices"]
+  },
+  {
+    "id": "environmental-scientist",
+    "title": "Environmental Scientist",
+    "onetCode": "19-2041.00",
+    "field": "Science",
+    "summary": "Study air, water, and land conditions and recommend ways to protect human health and the environment.",
+    "skills": ["Field sampling", "Environmental analysis", "Regulation knowledge", "Technical reporting"]
+  },
+  {
+    "id": "medical-scientist",
+    "title": "Medical Scientist",
+    "onetCode": "19-1042.00",
+    "field": "Science",
+    "summary": "Conduct research on human health and disease to improve understanding, treatments, and prevention.",
+    "skills": ["Biomedical research", "Experimental design", "Data interpretation", "Clinical literature"]
+  },
+  {
+    "id": "teacher",
+    "title": "Teacher",
+    "onetCode": "25-2031.00",
+    "field": "Education",
+    "summary": "Plan lessons and teach secondary school subjects while supporting students' academic growth.",
+    "skills": ["Lesson planning", "Classroom instruction", "Assessment", "Student engagement"]
+  },
+  {
+    "id": "elementary-school-teacher",
+    "title": "Elementary School Teacher",
+    "onetCode": "25-2021.00",
+    "field": "Education",
+    "summary": "Teach foundational reading, math, and other subjects to children in elementary grades.",
+    "skills": ["Child development", "Differentiated instruction", "Classroom management", "Literacy instruction"]
+  },
+  {
+    "id": "special-education-teacher",
+    "title": "Special Education Teacher",
+    "onetCode": "25-2058.00",
+    "field": "Education",
+    "summary": "Adapt instruction for students with disabilities so they can learn and meet their educational goals.",
+    "skills": ["Individualized education plans", "Inclusive teaching", "Behavior support", "Collaboration with families"]
+  },
+  {
+    "id": "instructional-coordinator",
+    "title": "Instructional Coordinator",
+    "onetCode": "25-9031.00",
+    "field": "Education",
+    "summary": "Develop curriculum and coach educators on teaching methods, materials, and school-wide learning goals.",
+    "skills": ["Curriculum design", "Teacher coaching", "Educational research", "Program evaluation"]
+  }
+]

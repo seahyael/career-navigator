@@ -1,0 +1,52 @@
+{
+  "Computer Science": [
+    {
+      "id": "ux-engineer",
+      "title": "UX Engineer",
+      "onetCode": "15-1255.00",
+      "field": "Computer Science",
+      "summary": "Build the interactive interface of a product so design intent becomes working, accessible software.",
+      "skills": ["Frontend development", "Design systems", "Prototyping", "Accessibility"]
+    },
+    {
+      "id": "frontend-engineer",
+      "title": "Frontend Engineer",
+      "onetCode": "15-1254.00",
+      "field": "Computer Science",
+      "summary": "Implement the parts of a web application that people see and interact with in the browser.",
+      "skills": ["JavaScript", "React", "CSS", "Web performance"]
+    },
+    {
+      "id": "backend-engineer",
+      "title": "Backend Engineer",
+      "onetCode": "15-1252.00",
+      "field": "Computer Science",
+      "summary": "Build the servers, APIs, and data logic that power an application's features behind the scenes.",
+      "skills": ["API design", "Databases", "Server programming", "System reliability"]
+    },
+    {
+      "id": "ux-researcher",
+      "title": "UX Researcher",
+      "onetCode": "17-2112.01",
+      "field": "Computer Science",
+      "summary": "Study how people use products and turn those findings into evidence for design and engineering decisions.",
+      "skills": ["User interviews", "Usability testing", "Research synthesis", "Human factors"]
+    },
+    {
+      "id": "product-manager",
+      "title": "Product Manager",
+      "onetCode": "15-1299.09",
+      "field": "Computer Science",
+      "summary": "Set a product's goals and priorities, then align engineering and design work to deliver them.",
+      "skills": ["Prioritization", "Stakeholder communication", "Roadmapping", "User needs analysis"]
+    },
+    {
+      "id": "data-scientist",
+      "title": "Data Scientist",
+      "onetCode": "15-2051.00",
+      "field": "Computer Science",
+      "summary": "Analyze large datasets with statistics and machine learning to answer questions and guide decisions.",
+      "skills": ["Statistics", "Python", "Data visualization", "Machine learning"]
+    }
+  ]
+}
