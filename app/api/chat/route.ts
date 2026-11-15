@@ -140,6 +140,12 @@ export async function POST(req: Request) {
         console.error("discover step failed:", e);
       }
     }
+    // Outside a field, rank only careers found for THIS user. The 30 starter careers are only a fallback
+    // for when the O*NET search found nothing (e.g. the AI or O*NET was down).
+    if (!confirmedField && dynamicPool.length) {
+      const mine = new Set(dynamicPool.map((c) => c.id));
+      candidates = candidates.filter((c) => mine.has(c.id));
+    }
     // Keep the personal pool from growing forever: careers they liked stay, then the best-scoring ones.
     if (dynamicPool.length > 60) {
       const fb = feedback as { interested?: string[]; maybe?: string[] };
@@ -157,7 +163,7 @@ export async function POST(req: Request) {
     const majorList: string[] = Array.isArray(majors) ? majors : [];
     const lowerMajors = majorList.map((m) => m.toLowerCase());
     const outside = majorList.length
-      ? dedupe([...(careers as unknown as Career[]), ...dynamicPool]).filter(
+      ? (dynamicPool.length ? dynamicPool : (careers as unknown as Career[])).filter(
           (c) => !lowerMajors.includes((c.field ?? "").toLowerCase())
         )
       : [];
