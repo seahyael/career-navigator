@@ -8,10 +8,13 @@ export const maxDuration = 60;
 
 type Career = { id: string; title: string; summary?: string; skills?: string[]; onetCode?: string; field?: string };
 
+// LinkedIn evidence for each career: the saved analysis when there is one, otherwise the raw postings collected
+// when the career was added to the roadmap (the roadmap call counts those itself, so no extra AI call is needed).
 async function marketEvidence(ids: string[]) {
   const out: Record<string, unknown> = {};
   for (const id of ids) {
-    const a = (await getMarket(id))?.analysis as
+    const entry = await getMarket(id);
+    const a = entry?.analysis as
       | { postingsCount?: number; skills?: { name: string; count: number }[]; certifications?: unknown[]; degrees?: unknown[] }
       | null
       | undefined;
@@ -22,6 +25,16 @@ async function marketEvidence(ids: string[]) {
         certifications: a.certifications ?? [],
         degrees: a.degrees ?? [],
       };
+    } else if (entry?.postings?.length) {
+      const posts = (entry.postings as { job_title?: string; job_summary?: string }[])
+        .filter((p) => p && (p.job_title || p.job_summary))
+        .slice(0, 10);
+      if (posts.length) {
+        out[id] = {
+          postingsCount: posts.length,
+          rawPostings: posts.map((p) => `${p.job_title ?? ""}: ${(p.job_summary ?? "").slice(0, 400)}`),
+        };
+      }
     }
   }
   return out;
@@ -81,7 +94,9 @@ They are interested in SEVERAL careers (careers). Do not pick one for them. The 
   must start NOW (today's term) and match whereNow; never include steps they are already past (no "explore majors" for a senior,
   no gen-ed courses for a grad student). Use monthsLeft to set the pace: fewer months = fewer, denser stages that reach
   applications quickly; more months = room to explore first.
-Use onetData (official requirements) and marketEvidence (counts from real LinkedIn postings) to decide WHAT to build.
+Use onetData (official requirements) and marketEvidence (real LinkedIn postings) to decide WHAT to build.
+marketEvidence gives either counted skills, or rawPostings: then count yourself how many of those postings mention the
+skill, and write evidence as "<count>/<postingsCount> postings". Never invent counts.
 Never use postings to judge fit.
 
 4-6 stages in time order. Each stage: title, when, goal (one sentence), milestone (concrete, countable),

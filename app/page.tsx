@@ -14,7 +14,7 @@ import Roadmap, {
   type Decision,
   type DecisionOption,
 } from "./Roadmap";
-import { T, fieldName, type Lang } from "./i18n";
+import { T, type Lang } from "./i18n";
 
 type TraitType = "strength" | "interest" | "value" | "dislike";
 type Trait = { id: string; label: string; type: TraitType; source: string };
@@ -54,22 +54,6 @@ function sampleTraits(lang: Lang): Trait[] {
     { id: "s4", label: ko ? "사물이 작동하는 원리" : "how things work", type: "interest", source: "sample" },
     { id: "s5", label: ko ? "의미 있는 일" : "meaningful work", type: "value", source: "sample" },
   ];
-}
-
-function LangToggle({ lang, setLang }: { lang: Lang; setLang: (l: Lang) => void }) {
-  return (
-    <div className="inline-flex rounded-full border bg-white p-0.5 text-xs">
-      {(["en", "ko"] as Lang[]).map((l) => (
-        <button
-          key={l}
-          onClick={() => setLang(l)}
-          className={`rounded-full px-3 py-1 ${lang === l ? "bg-slate-900 text-white" : "text-slate-500"}`}
-        >
-          {l === "en" ? "EN" : "한국어"}
-        </button>
-      ))}
-    </div>
-  );
 }
 
 function getStaticCareer(id: string, field: string | null) {
@@ -449,7 +433,15 @@ export default function Home() {
       const found = data.careers as (Career & { score: number; reason: string })[];
       // Keep the careers already on the roadmap findable, then the new list.
       const keep = pool.filter((c) => board.some((b) => b.id === c.id));
-      setPool([...found.map(({ score: _s, reason: _r, ...c }) => c), ...keep.filter((k) => !found.some((f) => f.id === k.id))]);
+      const asCareers: Career[] = found.map((c) => ({
+        id: c.id,
+        title: c.title,
+        field: c.field,
+        summary: c.summary,
+        skills: c.skills,
+        onetCode: c.onetCode,
+      }));
+      setPool([...asCareers, ...keep.filter((k) => !found.some((f) => f.id === k.id))]);
       setRanking(found.map((c) => ({ id: c.id, score: c.score, reason: c.reason })));
       setField(null);
     } catch (e) {
@@ -529,7 +521,6 @@ export default function Home() {
       const spec: BoardCareer = {
         id: `spec-${o.title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
         title: o.title,
-        titleKo: lang === "ko" ? o.label : undefined,
         summary: o.summary ?? o.title,
         skills: o.skills ?? [],
         field: parent?.field,
@@ -543,7 +534,7 @@ export default function Home() {
     }
     if (d.kind === "major" || d.kind === "field") {
       const hit = FIELDS.find(
-        (f) => o.label.toLowerCase().includes(f.toLowerCase()) || o.label.includes(fieldName(f, "ko"))
+        (f) => o.label.toLowerCase().includes(f.toLowerCase())
       );
       const pick = hit ?? (o.label.trim().length <= 40 ? o.label.trim() : null);
       if (pick && !majors.includes(pick)) setMajors([...majors, pick]);
@@ -565,7 +556,7 @@ export default function Home() {
     if (plan.path) setPlan({ ...plan, stale: true });
     setPendingAdd(null);
     showToast(t.addedToRoadmap, true);
-    askWhy(lang === "ko" && r.titleKo ? r.titleKo : c.title, "like");
+    askWhy(c.title, "like");
   }
 
   function askWhy(title: string, kind: "like" | "dislike") {
@@ -889,7 +880,7 @@ export default function Home() {
               traits={traits}
               majors={majors}
               lang={lang}
-              titleOf={(c) => (lang === "ko" && c.titleKo ? c.titleKo : c.title)}
+              titleOf={(c) => c.title}
               onRemove={removeFromBoard}
               onOpen={openFromRoadmap}
               onDecide={decide}
@@ -1110,7 +1101,7 @@ export default function Home() {
             <h2 className="text-lg font-semibold">{t.boardFull}</h2>
             <p className="text-sm text-slate-600 mt-1">
               {t.boardFullDesc(
-                lang === "ko" && pendingAdd.r.titleKo ? pendingAdd.r.titleKo : pendingAdd.c.title
+                pendingAdd.c.title
               )}
             </p>
             <div className="mt-4 space-y-2 max-h-80 overflow-y-auto">
@@ -1120,7 +1111,7 @@ export default function Home() {
                 .map(({ b }, i) => (
                   <div key={b.id} className="flex items-center gap-2 border rounded-xl px-3 py-2">
                     <span className="flex-1 text-sm">
-                      {lang === "ko" && b.titleKo ? b.titleKo : b.title}
+                      {b.title}
                       {i === 0 && <span className="ml-2 text-[11px] text-amber-700">· {t.leastFit}</span>}
                     </span>
                     <button
