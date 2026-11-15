@@ -91,6 +91,7 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [stage, setStage] = useState<"start" | "test" | "chat">("start");
   const [openCareer, setOpenCareer] = useState<string | null>(null);
+  const [majorInput, setMajorInput] = useState("");
   const [majors, setMajors] = useState<string[]>([]);
   const [beyond, setBeyond] = useState<Rank[]>([]);
   const [showCount, setShowCount] = useState(SHOW_COUNT);
@@ -307,9 +308,9 @@ export default function Home() {
   }
 
 
-  // Inside a field the server may add extra O*NET careers; look there first.
+  // Careers the server found across all of O*NET live in the pool; look there first.
   const getCareer = (id: string, f: string | null) =>
-    (f ? pool.find((c) => c.id === id) : undefined) ?? getStaticCareer(id, f) ?? getStaticCareer(id, null);
+    pool.find((c) => c.id === id) ?? getStaticCareer(id, f) ?? getStaticCareer(id, null);
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -359,6 +360,7 @@ export default function Home() {
           lang,
           majors: useMajors,
           context: opts.context ?? null,
+          pool,
           history: messages.filter((m) => m.role === "user").map((m) => m.text).slice(-15),
           prevRanking: useField === field ? ranking : [],
           feedback: {
@@ -398,7 +400,7 @@ export default function Home() {
       );
       setTimeout(() => setRising([]), 2000);
       setRanking(newRank);
-      if (useField && data.pool?.length) setPool(data.pool);
+      if (Array.isArray(data.pool)) setPool(data.pool);
       if (!useMajors.length) setBeyond([]);
       else if (data.beyond?.length) setBeyond(data.beyond);
 
@@ -424,7 +426,6 @@ export default function Home() {
 
   function confirmField(f: string) {
     setField(f);
-    setPool([]);
     setShowCount(SHOW_COUNT);
     setHidden([]);
     setRanking([]);
@@ -532,7 +533,8 @@ export default function Home() {
       const hit = FIELDS.find(
         (f) => o.label.toLowerCase().includes(f.toLowerCase()) || o.label.includes(fieldName(f, "ko"))
       );
-      if (hit && !majors.includes(hit)) setMajors([...majors, hit]);
+      const pick = hit ?? (o.label.trim().length <= 40 ? o.label.trim() : null);
+      if (pick && !majors.includes(pick)) setMajors([...majors, pick]);
     }
   }
 
@@ -915,21 +917,15 @@ export default function Home() {
               <div className="my-3">
                 <div className="text-xs text-slate-500 mb-2">{t.fieldsFit}</div>
                 <div className="flex flex-wrap gap-2">
-                  {topFields.map((f) =>
-                    subfields[f] ? (
-                      <button
-                        key={f}
-                        onClick={() => confirmField(f)}
-                        className="text-sm rounded-full px-3 py-1 bg-blue-600 text-white"
-                      >
-                        {t.seeMoreIn(fieldName(f, lang))}
-                      </button>
-                    ) : (
-                      <span key={f} className="text-sm rounded-full px-3 py-1 border text-slate-500">
-                        {fieldName(f, lang)}
-                      </span>
-                    )
-                  )}
+                  {topFields.map((f) => (
+                    <button
+                      key={f}
+                      onClick={() => confirmField(f)}
+                      className="text-sm rounded-full px-3 py-1 bg-blue-600 text-white"
+                    >
+                      {t.seeMoreIn(fieldName(f, lang))}
+                    </button>
+                  ))}
                 </div>
               </div>
             )}
@@ -1099,7 +1095,7 @@ export default function Home() {
             <div className="mt-5">
               <div className="text-xs font-semibold text-slate-500 mb-1">{t.myMajor}</div>
               <div className="flex flex-wrap gap-1.5">
-                {FIELDS.map((f) => (
+                {Array.from(new Set([...FIELDS, ...majors])).map((f) => (
                   <button
                     key={f}
                     onClick={() => toggleMajor(f)}
@@ -1113,6 +1109,26 @@ export default function Home() {
                   </button>
                 ))}
               </div>
+              <form
+                className="mt-2 flex gap-1.5"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const v = majorInput.trim();
+                  if (v && !majors.includes(v)) toggleMajor(v);
+                  setMajorInput("");
+                }}
+              >
+                <input
+                  value={majorInput}
+                  onChange={(e) => setMajorInput(e.target.value)}
+                  placeholder={t.addMajor}
+                  disabled={loading}
+                  className="flex-1 text-xs border rounded-full px-3 py-1"
+                />
+                <button type="submit" disabled={loading || !majorInput.trim()} className="text-xs rounded-full px-3 py-1 border disabled:opacity-40">
+                  +
+                </button>
+              </form>
               {majors.length === 0 && <p className="text-xs text-slate-400 mt-1">{t.noMajorYet}</p>}
             </div>
 
@@ -1226,7 +1242,7 @@ export default function Home() {
           field={field}
           traits={traits}
           lang={lang}
-          fallback={detailFallback}
+          fallback={detailFallback ?? ((getCareer(openCareer, field) as BoardCareer | undefined) ?? null)}
           onClose={() => {
             setOpenCareer(null);
             setDetailFallback(null);

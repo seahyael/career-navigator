@@ -22,7 +22,7 @@ const FIELD_QUERIES: Record<string, string[]> = {
 
 export const readExtras = getExtras;
 
-function dedupe(list: Career[]) {
+export function dedupe(list: Career[]) {
   const ids = new Set<string>();
   const codes = new Set<string>();
   return list.filter((c) => {
@@ -40,6 +40,7 @@ export async function fieldPool(field: string): Promise<Career[]> {
     ...(subfields[field] ?? []),
     ...careers.filter((c) => c.field === field),
     ...(extras[field] ?? []),
+    ...(extras.__onet ?? []).filter((c) => c.field === field),
   ]);
 }
 

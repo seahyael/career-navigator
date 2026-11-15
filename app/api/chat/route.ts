@@ -1,5 +1,6 @@
 import careers from "../../../data/careers.json";
-import { fieldPool, growPool, type Career } from "../../lib/pool";
+import { fieldPool, dedupe, type Career } from "../../lib/pool";
+import { discoverCareers } from "../../lib/discover";
 import { generateJSON } from "../../lib/gemini";
 import { trimTraits } from "../../lib/cache";
 
@@ -52,7 +53,7 @@ JSON only:
 
 // Step 2b: careers OUTSIDE the user's major that connect to their other sides.
 const BEYOND_PROMPT = `You help a student discover careers OUTSIDE their major(s) that they have probably never considered.
-From outsideCandidates, pick exactly 3 that fit SEVERAL of the user's traits, especially hobbies, "useless" talents,
+From outsideCandidates, skip any career that belongs to one of their majors, then pick exactly 3 that fit SEVERAL of the user's traits, especially hobbies, "useless" talents,
 and interests unrelated to their majors. Avoid the most obvious picks. Use only candidate ids given.
 reason: one short sentence (under 18 words) naming the connecting traits and the surprising angle.
 Output valid JSON with no trailing commas:
@@ -74,18 +75,19 @@ export async function POST(req: Request) {
       feedback = {},
       majors = [] as string[],
       context = null,
+      pool: clientPool = [] as Career[],
     } = await req.json();
     const rule = AI_LANG_RULE[(lang as Lang) in AI_LANG_RULE ? (lang as Lang) : "en"];
 
-    // Inside a confirmed field, keep at least 8 options that weren't marked "not for me".
-    let candidates: Career[] = confirmedField ? await fieldPool(confirmedField) : (careers as unknown as Career[]);
-    if (confirmedField) {
-      const rejected: string[] = (feedback as { notForMe?: string[] }).notForMe ?? [];
-      const left = candidates.filter((c) => !rejected.includes(c.id)).length;
-      if (left < 8 && (await growPool(confirmedField, 8 - left + 2)) > 0) {
-        candidates = await fieldPool(confirmedField);
-      }
-    }
+    // Careers found for this user across all of O*NET (sent back by the client every turn).
+    const rejected: string[] = (feedback as { notForMe?: string[] }).notForMe ?? [];
+    let dynamicPool: Career[] = (Array.isArray(clientPool) ? clientPool : []).filter(
+      (c: Career) => c?.id && c?.title
+    );
+    const base: Career[] = confirmedField
+      ? [...(await fieldPool(confirmedField)), ...dynamicPool.filter((c) => c.field === confirmedField)]
+      : [...(careers as unknown as Career[]), ...dynamicPool];
+    let candidates: Career[] = dedupe(base);
 
     // Step 1: extract (if it fails, keep going with no new traits)
     let extracted: {
@@ -117,24 +119,61 @@ export async function POST(req: Request) {
     });
     const allTraits = [...upgraded, ...newTraits];
 
+    // Step 1b: search the whole O*NET list with the full profile. Runs when something new was learned
+    // or when the list is running short; every proposed code is verified against O*NET.
+    const left = candidates.filter((c) => !rejected.includes(c.id)).length;
+    const shortList = confirmedField ? left < 10 : dynamicPool.length < 12;
+    if (allTraits.length && (newTraits.length || upgrades.length || shortList)) {
+      try {
+        const found = await discoverCareers({
+          traits: allTraits,
+          conversation: [...(history as string[]), message],
+          exclude: [...candidates.map((c) => c.title), ...rejected],
+          howMany: confirmedField ? 8 : 10,
+          focusField: confirmedField,
+        });
+        const knownCodes = new Set(candidates.map((c) => c.onetCode).filter(Boolean));
+        const added = found.filter((c) => !c.onetCode || !knownCodes.has(c.onetCode));
+        dynamicPool = dedupe([...dynamicPool, ...added]);
+        candidates = dedupe([...candidates, ...added]);
+      } catch (e) {
+        console.error("discover step failed:", e);
+      }
+    }
+    // Keep the personal pool from growing forever: careers they liked stay, then the best-scoring ones.
+    if (dynamicPool.length > 60) {
+      const fb = feedback as { interested?: string[]; maybe?: string[] };
+      const keep = new Set([...(fb.interested ?? []), ...(fb.maybe ?? [])]);
+      const prevScore = new Map((prevRanking as Rank[]).map((r) => [r.id, r.score]));
+      dynamicPool = [...dynamicPool]
+        .sort((a, b) => (keep.has(b.id) ? 1000 : prevScore.get(b.id) ?? 500) - (keep.has(a.id) ? 1000 : prevScore.get(a.id) ?? 500))
+        .slice(0, 60);
+      const ids = new Set(dynamicPool.map((c) => c.id));
+      const staticIds = new Set(base.filter((c) => !c.id.startsWith("onet-")).map((c) => c.id));
+      candidates = candidates.filter((c) => staticIds.has(c.id) || ids.has(c.id));
+    }
+
     // Step 2 (rank) and 2b (beyond the major) run in parallel
     const majorList: string[] = Array.isArray(majors) ? majors : [];
+    const lowerMajors = majorList.map((m) => m.toLowerCase());
     const outside = majorList.length
-      ? (careers as { id: string; field?: string }[]).filter((c) => !majorList.includes(c.field ?? ""))
+      ? dedupe([...(careers as unknown as Career[]), ...dynamicPool]).filter(
+          (c) => !lowerMajors.includes((c.field ?? "").toLowerCase())
+        )
       : [];
     const [rankResult, beyondResult] = await Promise.allSettled([
       askJSON(`${RANK_PROMPT}\n\nLANGUAGE: ${rule}`, {
         allTraits: trimTraits(allTraits),
         conversation: [...history, message],
         feedback,
-        candidates,
+        candidates: candidates.map((c) => ({ id: c.id, title: c.title, field: c.field, summary: c.summary, skills: c.skills })),
       }),
       outside.length && allTraits.length
         ? askJSON(`${BEYOND_PROMPT}\n\nLANGUAGE: ${rule}`, {
             majors: majorList,
             allTraits: trimTraits(allTraits),
             conversation: [...history, message],
-            outsideCandidates: outside,
+            outsideCandidates: outside.map((c) => ({ id: c.id, title: c.title, field: c.field, summary: c.summary })),
           })
         : Promise.resolve({ beyond: [] }),
     ]);
@@ -173,7 +212,7 @@ export async function POST(req: Request) {
       upgrades,
       ranking,
       beyond,
-      pool: confirmedField ? candidates : [],
+      pool: dedupe([...dynamicPool, ...candidates.filter((c) => c.id.startsWith("onet-"))]),
       reply: extracted.reply ?? "",
       followUp: extracted.followUp ?? null,
     });
