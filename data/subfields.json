@@ -6,7 +6,12 @@
       "onetCode": "15-1255.00",
       "field": "Computer Science",
       "summary": "Build the interactive interface of a product so design intent becomes working, accessible software.",
-      "skills": ["Frontend development", "Design systems", "Prototyping", "Accessibility"]
+      "skills": [
+        "Frontend development",
+        "Design systems",
+        "Prototyping",
+        "Accessibility"
+      ]
     },
     {
       "id": "frontend-engineer",
@@ -14,7 +19,12 @@
       "onetCode": "15-1254.00",
       "field": "Computer Science",
       "summary": "Implement the parts of a web application that people see and interact with in the browser.",
-      "skills": ["JavaScript", "React", "CSS", "Web performance"]
+      "skills": [
+        "JavaScript",
+        "React",
+        "CSS",
+        "Web performance"
+      ]
     },
     {
       "id": "backend-engineer",
@@ -22,7 +32,12 @@
       "onetCode": "15-1252.00",
       "field": "Computer Science",
       "summary": "Build the servers, APIs, and data logic that power an application's features behind the scenes.",
-      "skills": ["API design", "Databases", "Server programming", "System reliability"]
+      "skills": [
+        "API design",
+        "Databases",
+        "Server programming",
+        "System reliability"
+      ]
     },
     {
       "id": "ux-researcher",
@@ -30,7 +45,12 @@
       "onetCode": "17-2112.01",
       "field": "Computer Science",
       "summary": "Study how people use products and turn those findings into evidence for design and engineering decisions.",
-      "skills": ["User interviews", "Usability testing", "Research synthesis", "Human factors"]
+      "skills": [
+        "User interviews",
+        "Usability testing",
+        "Research synthesis",
+        "Human factors"
+      ]
     },
     {
       "id": "product-manager",
@@ -38,7 +58,12 @@
       "onetCode": "15-1299.09",
       "field": "Computer Science",
       "summary": "Set a product's goals and priorities, then align engineering and design work to deliver them.",
-      "skills": ["Prioritization", "Stakeholder communication", "Roadmapping", "User needs analysis"]
+      "skills": [
+        "Prioritization",
+        "Stakeholder communication",
+        "Roadmapping",
+        "User needs analysis"
+      ]
     },
     {
       "id": "data-scientist",
@@ -46,7 +71,492 @@
       "onetCode": "15-2051.00",
       "field": "Computer Science",
       "summary": "Analyze large datasets with statistics and machine learning to answer questions and guide decisions.",
-      "skills": ["Statistics", "Python", "Data visualization", "Machine learning"]
+      "skills": [
+        "Statistics",
+        "Python",
+        "Data visualization",
+        "Machine learning"
+      ]
+    }
+  ],
+  "Design": [
+    {
+      "id": "ui-ux-designer",
+      "title": "UI/UX Designer",
+      "onetCode": "15-1255.00",
+      "field": "Design",
+      "summary": "Design screens and flows so digital products feel clear and easy to use.",
+      "skills": [
+        "Wireframing",
+        "Prototyping",
+        "User research",
+        "Visual design"
+      ]
+    },
+    {
+      "id": "graphic-designer",
+      "title": "Graphic Designer",
+      "onetCode": "27-1024.00",
+      "field": "Design",
+      "summary": "Create visual concepts for brands, posters, packaging and digital media.",
+      "skills": [
+        "Typography",
+        "Layout",
+        "Branding",
+        "Adobe tools"
+      ]
+    },
+    {
+      "id": "art-director",
+      "title": "Art Director",
+      "onetCode": "27-1011.00",
+      "field": "Design",
+      "summary": "Lead the visual style of campaigns, publications or productions and guide other designers.",
+      "skills": [
+        "Creative direction",
+        "Team leadership",
+        "Visual storytelling",
+        "Presentation"
+      ]
+    },
+    {
+      "id": "industrial-designer",
+      "title": "Product (Industrial) Designer",
+      "onetCode": "27-1021.00",
+      "field": "Design",
+      "summary": "Design physical products people use every day, balancing form, function and manufacturing.",
+      "skills": [
+        "Sketching",
+        "3D modeling",
+        "Ergonomics",
+        "Materials"
+      ]
+    },
+    {
+      "id": "animator",
+      "title": "Animator / Motion Designer",
+      "onetCode": "27-1014.00",
+      "field": "Design",
+      "summary": "Bring characters, interfaces and stories to life with motion and visual effects.",
+      "skills": [
+        "Animation",
+        "Storyboarding",
+        "Motion graphics",
+        "Timing"
+      ]
+    },
+    {
+      "id": "interior-designer",
+      "title": "Interior Designer",
+      "onetCode": "27-1025.00",
+      "field": "Design",
+      "summary": "Plan indoor spaces that are functional, safe and beautiful.",
+      "skills": [
+        "Space planning",
+        "Color and materials",
+        "Client communication",
+        "CAD"
+      ]
+    }
+  ],
+  "Business": [
+    {
+      "id": "marketing-manager",
+      "title": "Marketing Manager",
+      "onetCode": "11-2021.00",
+      "field": "Business",
+      "summary": "Plan how products reach the right people, from research to campaigns.",
+      "skills": [
+        "Market strategy",
+        "Campaign planning",
+        "Analytics",
+        "Storytelling"
+      ]
+    },
+    {
+      "id": "management-consultant",
+      "title": "Management Analyst / Consultant",
+      "onetCode": "13-1111.00",
+      "field": "Business",
+      "summary": "Help organizations solve problems and work more effectively.",
+      "skills": [
+        "Problem solving",
+        "Data analysis",
+        "Presentation",
+        "Process design"
+      ]
+    },
+    {
+      "id": "project-manager",
+      "title": "Project Manager",
+      "onetCode": "13-1082.00",
+      "field": "Business",
+      "summary": "Coordinate people, timelines and budgets so projects finish well.",
+      "skills": [
+        "Planning",
+        "Communication",
+        "Risk management",
+        "Organization"
+      ]
+    },
+    {
+      "id": "financial-analyst",
+      "title": "Financial Analyst",
+      "onetCode": "13-2051.00",
+      "field": "Business",
+      "summary": "Evaluate financial data to guide investment and business decisions.",
+      "skills": [
+        "Financial modeling",
+        "Excel",
+        "Forecasting",
+        "Attention to detail"
+      ]
+    },
+    {
+      "id": "hr-specialist",
+      "title": "Human Resources Specialist",
+      "onetCode": "13-1071.00",
+      "field": "Business",
+      "summary": "Recruit, support and develop the people who make an organization work.",
+      "skills": [
+        "Interviewing",
+        "Empathy",
+        "Employment policy",
+        "Communication"
+      ]
+    },
+    {
+      "id": "training-specialist",
+      "title": "Training & Development Specialist",
+      "onetCode": "13-1151.00",
+      "field": "Business",
+      "summary": "Design programs that help employees learn new skills.",
+      "skills": [
+        "Teaching",
+        "Program design",
+        "Facilitation",
+        "Needs assessment"
+      ]
+    }
+  ],
+  "Psychology": [
+    {
+      "id": "clinical-psychologist",
+      "title": "Clinical / Counseling Psychologist",
+      "onetCode": "19-3033.00",
+      "field": "Psychology",
+      "summary": "Assess and treat emotional and mental health challenges through therapy.",
+      "skills": [
+        "Active listening",
+        "Assessment",
+        "Therapy methods",
+        "Empathy"
+      ]
+    },
+    {
+      "id": "mental-health-counselor",
+      "title": "Mental Health Counselor",
+      "onetCode": "21-1014.00",
+      "field": "Psychology",
+      "summary": "Support people through stress, life changes and mental health concerns.",
+      "skills": [
+        "Counseling",
+        "Empathy",
+        "Crisis support",
+        "Case planning"
+      ]
+    },
+    {
+      "id": "school-counselor",
+      "title": "School / Career Counselor",
+      "onetCode": "21-1012.00",
+      "field": "Psychology",
+      "summary": "Guide students with academic, career and personal decisions.",
+      "skills": [
+        "Advising",
+        "Career guidance",
+        "Communication",
+        "Empathy"
+      ]
+    },
+    {
+      "id": "io-psychologist",
+      "title": "Industrial-Organizational Psychologist",
+      "onetCode": "19-3032.00",
+      "field": "Psychology",
+      "summary": "Apply psychology to improve workplaces, hiring and team performance.",
+      "skills": [
+        "Research design",
+        "Statistics",
+        "Consulting",
+        "Organizational behavior"
+      ]
+    },
+    {
+      "id": "human-factors-specialist",
+      "title": "Human Factors Specialist",
+      "onetCode": "17-2112.01",
+      "field": "Psychology",
+      "summary": "Study how people interact with products and systems to make them safer and easier.",
+      "skills": [
+        "Usability testing",
+        "Experiment design",
+        "Ergonomics",
+        "Data analysis"
+      ]
+    },
+    {
+      "id": "survey-researcher",
+      "title": "Survey / Market Researcher",
+      "onetCode": "19-3022.00",
+      "field": "Psychology",
+      "summary": "Design surveys and studies to understand what people think and do.",
+      "skills": [
+        "Survey design",
+        "Statistics",
+        "Interviewing",
+        "Reporting"
+      ]
+    }
+  ],
+  "Communications": [
+    {
+      "id": "pr-specialist",
+      "title": "Public Relations Specialist",
+      "onetCode": "27-3031.00",
+      "field": "Communications",
+      "summary": "Shape how organizations communicate with the public and media.",
+      "skills": [
+        "Writing",
+        "Media relations",
+        "Storytelling",
+        "Crisis communication"
+      ]
+    },
+    {
+      "id": "content-strategist",
+      "title": "Content / SEO Strategist",
+      "onetCode": "13-1161.01",
+      "field": "Communications",
+      "summary": "Plan online content so the right audience finds and engages with it.",
+      "skills": [
+        "SEO",
+        "Content planning",
+        "Analytics",
+        "Copywriting"
+      ]
+    },
+    {
+      "id": "journalist",
+      "title": "Journalist / Reporter",
+      "onetCode": "27-3023.00",
+      "field": "Communications",
+      "summary": "Research, interview and report stories that inform the public.",
+      "skills": [
+        "Interviewing",
+        "Writing",
+        "Fact-checking",
+        "Curiosity"
+      ]
+    },
+    {
+      "id": "writer",
+      "title": "Writer / Author",
+      "onetCode": "27-3043.00",
+      "field": "Communications",
+      "summary": "Write stories, scripts, articles or copy that move readers.",
+      "skills": [
+        "Creative writing",
+        "Editing",
+        "Research",
+        "Voice"
+      ]
+    },
+    {
+      "id": "technical-writer",
+      "title": "Technical Writer",
+      "onetCode": "27-3042.00",
+      "field": "Communications",
+      "summary": "Turn complex information into clear guides and documentation.",
+      "skills": [
+        "Clear writing",
+        "Information design",
+        "Research",
+        "Collaboration"
+      ]
+    },
+    {
+      "id": "editor",
+      "title": "Editor",
+      "onetCode": "27-3041.00",
+      "field": "Communications",
+      "summary": "Plan and polish written content so it is accurate and engaging.",
+      "skills": [
+        "Editing",
+        "Judgment",
+        "Attention to detail",
+        "Feedback"
+      ]
+    }
+  ],
+  "Science": [
+    {
+      "id": "environmental-scientist",
+      "title": "Environmental Scientist",
+      "onetCode": "19-2041.00",
+      "field": "Science",
+      "summary": "Study and protect the environment and human health using data and fieldwork.",
+      "skills": [
+        "Fieldwork",
+        "Data analysis",
+        "Environmental policy",
+        "Research"
+      ]
+    },
+    {
+      "id": "medical-scientist",
+      "title": "Medical Scientist",
+      "onetCode": "19-1042.00",
+      "field": "Science",
+      "summary": "Research diseases and develop ways to improve human health.",
+      "skills": [
+        "Lab research",
+        "Statistics",
+        "Scientific writing",
+        "Biology"
+      ]
+    },
+    {
+      "id": "epidemiologist",
+      "title": "Epidemiologist",
+      "onetCode": "19-1041.00",
+      "field": "Science",
+      "summary": "Track patterns of disease to protect public health.",
+      "skills": [
+        "Statistics",
+        "Public health",
+        "Data analysis",
+        "Communication"
+      ]
+    },
+    {
+      "id": "biochemist",
+      "title": "Biochemist / Biophysicist",
+      "onetCode": "19-1021.00",
+      "field": "Science",
+      "summary": "Study the chemical processes of living things.",
+      "skills": [
+        "Lab techniques",
+        "Chemistry",
+        "Experiment design",
+        "Analysis"
+      ]
+    },
+    {
+      "id": "chemist",
+      "title": "Chemist",
+      "onetCode": "19-2031.00",
+      "field": "Science",
+      "summary": "Analyze substances and develop new materials and products.",
+      "skills": [
+        "Lab work",
+        "Chemistry",
+        "Precision",
+        "Problem solving"
+      ]
+    },
+    {
+      "id": "data-scientist-science",
+      "title": "Data Scientist",
+      "onetCode": "15-2051.00",
+      "field": "Science",
+      "summary": "Use statistics and code to find answers in scientific data.",
+      "skills": [
+        "Statistics",
+        "Python",
+        "Visualization",
+        "Modeling"
+      ]
+    }
+  ],
+  "Education": [
+    {
+      "id": "elementary-teacher",
+      "title": "Elementary School Teacher",
+      "onetCode": "25-2021.00",
+      "field": "Education",
+      "summary": "Teach young students core subjects and help them grow.",
+      "skills": [
+        "Lesson planning",
+        "Patience",
+        "Classroom management",
+        "Creativity"
+      ]
+    },
+    {
+      "id": "secondary-teacher",
+      "title": "High School Teacher",
+      "onetCode": "25-2031.00",
+      "field": "Education",
+      "summary": "Teach a subject to teenagers and prepare them for what comes next.",
+      "skills": [
+        "Subject expertise",
+        "Lesson planning",
+        "Mentoring",
+        "Communication"
+      ]
+    },
+    {
+      "id": "special-ed-teacher",
+      "title": "Special Education Teacher",
+      "onetCode": "25-2052.00",
+      "field": "Education",
+      "summary": "Adapt teaching for students with diverse learning needs.",
+      "skills": [
+        "Individualized plans",
+        "Patience",
+        "Collaboration",
+        "Empathy"
+      ]
+    },
+    {
+      "id": "instructional-designer",
+      "title": "Instructional Designer / Coordinator",
+      "onetCode": "25-9031.00",
+      "field": "Education",
+      "summary": "Design courses and learning materials that actually work.",
+      "skills": [
+        "Curriculum design",
+        "E-learning tools",
+        "Assessment",
+        "Research"
+      ]
+    },
+    {
+      "id": "education-counselor",
+      "title": "Education / Career Counselor",
+      "onetCode": "21-1012.00",
+      "field": "Education",
+      "summary": "Help students plan their studies and careers.",
+      "skills": [
+        "Advising",
+        "Empathy",
+        "Career guidance",
+        "Communication"
+      ]
+    },
+    {
+      "id": "corporate-trainer",
+      "title": "Corporate Trainer",
+      "onetCode": "13-1151.00",
+      "field": "Education",
+      "summary": "Teach adults new skills at work through workshops and programs.",
+      "skills": [
+        "Facilitation",
+        "Presentation",
+        "Program design",
+        "Coaching"
+      ]
     }
   ]
 }
