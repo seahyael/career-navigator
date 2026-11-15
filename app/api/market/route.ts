@@ -1,13 +1,14 @@
-import { GoogleGenAI } from "@google/genai";
-import { promises as fs } from "fs";
-import path from "path";
 import { AI_LANG_RULE, type Lang } from "../../i18n";
+import { getMarket, setMarket } from "../../lib/cache";
+import { generateJSON } from "../../lib/gemini";
+
+// Bright Data can take a while the first time; stay within the free hosting limit (60s).
+export const maxDuration = 60;
 
 // Live LinkedIn job postings via Bright Data, used ONLY to show what to build (never to judge fit).
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 const BD = "https://api.brightdata.com/datasets/v3";
 const DATASET = "gd_lpfll7v5hcqtkxl6l"; // LinkedIn job listings
-const CACHE_FILE = path.join(process.cwd(), "data", "market-cache.json");
+const STALE_DAYS = 14;
 
 type Posting = {
   job_title?: string;
@@ -18,24 +19,6 @@ type Posting = {
   job_base_pay_range?: string;
   base_salary?: { min_amount?: number; max_amount?: number; currency?: string; payment_period?: string };
 };
-
-type Entry = { fetchedAt: string; postings: Posting[]; analysis?: unknown };
-
-async function readCache(): Promise<Record<string, Entry>> {
-  try {
-    return JSON.parse(await fs.readFile(CACHE_FILE, "utf8"));
-  } catch {
-    return {};
-  }
-}
-
-async function writeCache(cache: Record<string, unknown>) {
-  try {
-    await fs.writeFile(CACHE_FILE, JSON.stringify(cache, null, 2));
-  } catch (e) {
-    console.warn("could not write market cache:", e);
-  }
-}
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -59,10 +42,10 @@ async function fetchPostings(keyword: string): Promise<Posting[]> {
   // Fast path: the scrape endpoint answered with the postings directly.
   if (Array.isArray(body)) return body;
 
-  // Slow path: it handed back a snapshot id; poll until ready (up to ~90s).
+  // Slow path: it handed back a snapshot id; poll until ready (up to ~45s).
   const snapshotId = body?.snapshot_id;
   if (!snapshotId) throw new Error(`Bright Data: unexpected response ${JSON.stringify(body).slice(0, 200)}`);
-  for (let i = 0; i < 30; i++) {
+  for (let i = 0; i < 15; i++) {
     await sleep(3000);
     const snap = await fetch(`${BD}/snapshot/${snapshotId}?format=json`, { headers });
     if (snap.status === 200) {
@@ -90,16 +73,15 @@ export async function POST(req: Request) {
     if (!careerId || !title) return Response.json({ error: "careerId and title are required" }, { status: 400 });
     const rule = AI_LANG_RULE[(lang as Lang) in AI_LANG_RULE ? (lang as Lang) : "en"];
 
-    const cache = await readCache();
-    let entry = cache[careerId];
-    if (!entry || refresh) {
+    let entry = await getMarket(careerId);
+    const stale = entry && Date.now() - new Date(entry.fetchedAt).getTime() > STALE_DAYS * 864e5;
+    if (!entry || refresh || stale) {
       const postings = await fetchPostings(title);
-      entry = { fetchedAt: new Date().toISOString(), postings };
-      cache[careerId] = entry;
-      await writeCache(cache);
+      entry = { fetchedAt: new Date().toISOString(), postings, analysis: null };
+      await setMarket(careerId, entry);
     }
 
-    const postings = entry.postings.filter((p) => p && (p.job_title || p.job_summary));
+    const postings = (entry.postings as Posting[]).filter((p) => p && (p.job_title || p.job_summary));
     if (!postings.length) return Response.json({ error: "No postings found for this career right now." }, { status: 404 });
 
     const compact = postings.slice(0, 15).map((p) => ({
@@ -108,27 +90,14 @@ export async function POST(req: Request) {
       text: (p.job_summary ?? "").slice(0, 1500),
     }));
 
-    const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash-lite",
-      contents: JSON.stringify({ career: title, userTraits: traits, postings: compact }),
-      config: {
-        systemInstruction: `${PROMPT}\n\nLANGUAGE: ${rule}`,
-        responseMimeType: "application/json",
-        temperature: 0.3,
-        maxOutputTokens: 4096,
-      },
-    });
-    const raw = (response.text ?? "").replace(/```json|```/g, "").trim();
-    let analysis;
-    try {
-      analysis = JSON.parse(raw);
-    } catch {
-      analysis = JSON.parse(raw.slice(raw.indexOf("{"), raw.lastIndexOf("}") + 1).replace(/,\s*([}\]])/g, "$1"));
-    }
+    const analysis = await generateJSON(
+      `${PROMPT}\n\nLANGUAGE: ${rule}`,
+      { career: title, userTraits: traits, postings: compact },
+      { temperature: 0.3, maxOutputTokens: 4096 }
+    );
 
     // Save the analysis so the roadmap can use it as evidence.
-    cache[careerId] = { ...entry, analysis: { postingsCount: postings.length, ...analysis } };
-    await writeCache(cache);
+    await setMarket(careerId, { ...entry, analysis: { postingsCount: postings.length, ...analysis } });
 
     const salaries = postings
       .map((p) => p.base_salary)

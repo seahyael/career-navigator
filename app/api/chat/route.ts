@@ -1,6 +1,9 @@
 import careers from "../../../data/careers.json";
 import { fieldPool, growPool, type Career } from "../../lib/pool";
 import { generateJSON } from "../../lib/gemini";
+import { trimTraits } from "../../lib/cache";
+
+export const maxDuration = 60;
 import { AI_LANG_RULE, type Lang } from "../../i18n";
 
 type Trait = { id: string; label: string; type: string; source: string };
@@ -40,7 +43,6 @@ Rules:
 - A career should score high only if it fits SEVERAL traits together. One matching trait alone = at most 60.
 - Traits of type "dislike" lower the score of careers that require them.
 - Careers marked interested get a small boost; notForMe should rank near the bottom; maybe is neutral.
-- Careers whose field is in feedback.notForMeFields go to the very bottom (score under 20).
 - Score every candidate 0-100. Use only candidate ids given. Never invent careers.
 - Keep each reason under 18 words. Output valid JSON with no trailing commas.
 - reason: one short sentence that combines at least TWO of the user's traits, ideally from different messages,
@@ -96,8 +98,8 @@ export async function POST(req: Request) {
       extracted = await askJSON(`${EXTRACT_PROMPT}\n\nLANGUAGE: ${rule}`, {
         newMessage: message,
         contextNote: context,
-        currentTraits: traits,
-        earlierMessages: history,
+        currentTraits: trimTraits(traits as Trait[]),
+        earlierMessages: (history as string[]).slice(-15),
       });
     } catch (e) {
       console.error("extract failed:", e);
@@ -118,15 +120,11 @@ export async function POST(req: Request) {
     // Step 2 (rank) and 2b (beyond the major) run in parallel
     const majorList: string[] = Array.isArray(majors) ? majors : [];
     const outside = majorList.length
-      ? (careers as { id: string; field?: string }[]).filter(
-          (c) =>
-            !majorList.includes(c.field ?? "") &&
-            !((feedback as { notForMeFields?: string[] }).notForMeFields ?? []).includes(c.field ?? "")
-        )
+      ? (careers as { id: string; field?: string }[]).filter((c) => !majorList.includes(c.field ?? ""))
       : [];
     const [rankResult, beyondResult] = await Promise.allSettled([
       askJSON(`${RANK_PROMPT}\n\nLANGUAGE: ${rule}`, {
-        allTraits,
+        allTraits: trimTraits(allTraits),
         conversation: [...history, message],
         feedback,
         candidates,
@@ -134,7 +132,7 @@ export async function POST(req: Request) {
       outside.length && allTraits.length
         ? askJSON(`${BEYOND_PROMPT}\n\nLANGUAGE: ${rule}`, {
             majors: majorList,
-            allTraits,
+            allTraits: trimTraits(allTraits),
             conversation: [...history, message],
             outsideCandidates: outside,
           })

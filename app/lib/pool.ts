@@ -1,6 +1,5 @@
 // Server-only helpers for the career candidate pool.
-import { promises as fs } from "fs";
-import path from "path";
+import { getExtras, setExtras } from "./cache";
 import careersData from "../../data/careers.json";
 import subfieldsData from "../../data/subfields.json";
 
@@ -8,7 +7,6 @@ export type Career = { id: string; title: string; onetCode?: string; field?: str
 
 const careers = careersData as unknown as Career[];
 const subfields = subfieldsData as unknown as Record<string, Career[]>;
-const EXTRA_FILE = path.join(process.cwd(), "data", "extra-careers.json");
 const ONET_BASE = process.env.ONET_BASE_URL ?? "https://api-v2.onetcenter.org";
 
 // Search words used to find more real O*NET occupations inside each field.
@@ -22,13 +20,7 @@ const FIELD_QUERIES: Record<string, string[]> = {
   Education: ["teacher", "instructor", "education"],
 };
 
-export async function readExtras(): Promise<Record<string, Career[]>> {
-  try {
-    return JSON.parse(await fs.readFile(EXTRA_FILE, "utf8"));
-  } catch {
-    return {};
-  }
-}
+export const readExtras = getExtras;
 
 function dedupe(list: Career[]) {
   const ids = new Set<string>();
@@ -100,12 +92,7 @@ export async function growPool(field: string, howMany = 6): Promise<number> {
 
   if (added.length) {
     const extras = await readExtras();
-    extras[field] = [...(extras[field] ?? []), ...added];
-    try {
-      await fs.writeFile(EXTRA_FILE, JSON.stringify(extras, null, 2));
-    } catch (e) {
-      console.warn("could not save extra careers:", e);
-    }
+    await setExtras(field, [...(extras[field] ?? []), ...added]);
   }
   return added.length;
 }

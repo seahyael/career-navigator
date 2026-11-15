@@ -50,6 +50,7 @@ export async function createSession(userId: string) {
   if (!db) throw new Error("Database is not configured");
   await db.ready;
   const token = randomBytes(32).toString("hex");
+  await db.sql`DELETE FROM sessions WHERE created_at < now() - interval '30 days'`; // tidy up old sessions
   await db.sql`INSERT INTO sessions (token, user_id) VALUES (${token}, ${userId})`;
   (await cookies()).set(SESSION_COOKIE, token, {
     httpOnly: true,
@@ -68,7 +69,8 @@ export async function currentUser(): Promise<{ id: string; username: string } | 
   try {
     await db.ready;
     const rows = await db.sql`
-      SELECT u.id, u.username FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token = ${token}`;
+      SELECT u.id, u.username FROM sessions s JOIN users u ON u.id = s.user_id
+      WHERE s.token = ${token} AND s.created_at > now() - interval '30 days'`;
     return rows[0] ? { id: rows[0].id as string, username: rows[0].username as string } : null;
   } catch (e) {
     console.error("currentUser error:", e);

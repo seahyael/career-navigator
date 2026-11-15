@@ -1,5 +1,17 @@
 import { authDb, createSession, currentUser, endSession, hashPassword, newUserId, verifyPassword } from "../../lib/auth";
 
+// Slow down password guessing: 5 failed logins locks that username for 5 minutes.
+const failures = new Map<string, { count: number; until: number }>();
+function locked(name: string) {
+  const f = failures.get(name);
+  return !!f && f.count >= 5 && Date.now() < f.until;
+}
+function recordFailure(name: string) {
+  const f = failures.get(name);
+  const count = f && Date.now() < f.until ? f.count + 1 : 1;
+  failures.set(name, { count, until: Date.now() + 5 * 60 * 1000 });
+}
+
 // GET: who is logged in
 export async function GET() {
   const user = await currentUser();
@@ -34,10 +46,13 @@ export async function POST(req: Request) {
     }
 
     if (action === "login") {
+      if (locked(name)) return Response.json({ error: "locked" }, { status: 429 });
       const rows = await db.sql`SELECT id, password_hash FROM users WHERE username = ${name}`;
       if (!rows[0] || !verifyPassword(password, rows[0].password_hash as string)) {
+        recordFailure(name);
         return Response.json({ error: "wrong" }, { status: 401 });
       }
+      failures.delete(name);
       await createSession(rows[0].id as string);
       return Response.json({ user: { id: rows[0].id, username: name }, isNew: false });
     }

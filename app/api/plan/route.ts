@@ -1,31 +1,30 @@
-import { promises as fs } from "fs";
-import path from "path";
 import { AI_LANG_RULE, type Lang } from "../../i18n";
 import { fetchOnet } from "../../lib/onet";
 import { generateJSON } from "../../lib/gemini";
+import { getMarket, trimTraits } from "../../lib/cache";
+
+export const maxDuration = 60;
 
 
 type Career = { id: string; title: string; summary?: string; skills?: string[]; onetCode?: string; field?: string };
 
 async function marketEvidence(ids: string[]) {
-  try {
-    const cache = JSON.parse(await fs.readFile(path.join(process.cwd(), "data", "market-cache.json"), "utf8"));
-    const out: Record<string, unknown> = {};
-    for (const id of ids) {
-      const a = cache[id]?.analysis;
-      if (a) {
-        out[id] = {
-          postingsCount: a.postingsCount,
-          skills: (a.skills ?? []).map((s: { name: string; count: number }) => ({ name: s.name, count: s.count })),
-          certifications: a.certifications ?? [],
-          degrees: a.degrees ?? [],
-        };
-      }
+  const out: Record<string, unknown> = {};
+  for (const id of ids) {
+    const a = (await getMarket(id))?.analysis as
+      | { postingsCount?: number; skills?: { name: string; count: number }[]; certifications?: unknown[]; degrees?: unknown[] }
+      | null
+      | undefined;
+    if (a) {
+      out[id] = {
+        postingsCount: a.postingsCount,
+        skills: (a.skills ?? []).map((s) => ({ name: s.name, count: s.count })),
+        certifications: a.certifications ?? [],
+        degrees: a.degrees ?? [],
+      };
     }
-    return out;
-  } catch {
-    return {};
   }
+  return out;
 }
 
 const PROMPT = `You are a career coach. Build ONE comprehensive roadmap for a student who is still exploring.
@@ -92,10 +91,10 @@ export async function POST(req: Request) {
       careers: list.map((c) => ({ id: c.id, title: c.title, summary: c.summary, skills: c.skills, field: c.field })),
       today: new Date().toISOString().slice(0, 10),
       timeline,
-      userTraits: traits,
+      userTraits: trimTraits(traits as { type: string }[]),
       majors,
       confirmedField: field,
-      completedTasks,
+      completedTasks: (completedTasks as unknown[]).slice(-30),
       decisions,
       onetData,
       marketEvidence: evidence,

@@ -19,7 +19,15 @@ import { T, fieldName, type Lang } from "./i18n";
 type TraitType = "strength" | "interest" | "value" | "dislike";
 type Trait = { id: string; label: string; type: TraitType; source: string };
 type Rank = { id: string; score: number; reason: string; titleKo?: string };
-type Career = { id: string; title: string; field?: string; summary: string; skills: string[] };
+type Career = {
+  id: string;
+  title: string;
+  field?: string;
+  summary: string;
+  skills: string[];
+  onetCode?: string;
+  parentId?: string;
+};
 type Msg = { role: "user" | "coach"; text: string };
 
 const careers = careersData as unknown as Career[];
@@ -92,7 +100,6 @@ export default function Home() {
   const [plan, setPlan] = useState<Plan>(EMPTY_PLAN);
   const [timeline, setTimeline] = useState<Timeline>(EMPTY_TIMELINE);
   const [detailFallback, setDetailFallback] = useState<BoardCareer | null>(null);
-  const [hiddenFields, setHiddenFields] = useState<string[]>([]);
   // "why?" question after adding / dismissing a career
   const [reasonAsk, setReasonAsk] = useState<{
     title: string;
@@ -135,7 +142,6 @@ export default function Home() {
     // older saves used a different roadmap shape; only restore the current one
     if (d.plan && Array.isArray((d.plan as Plan).decisions)) setPlan(d.plan);
     if (d.timeline) setTimeline(d.timeline);
-    if (d.hiddenFields) setHiddenFields(d.hiddenFields);
     if (d.showCount) setShowCount(d.showCount);
     if (d.lang === "ko" || d.lang === "en") setLangState(d.lang);
     if (d.stage === "chat") setStage("chat");
@@ -154,7 +160,6 @@ export default function Home() {
     setPool([]);
     setPlan(EMPTY_PLAN);
     setTimeline(EMPTY_TIMELINE);
-    setHiddenFields([]);
     setShowCount(SHOW_COUNT);
     setView("explore");
     setStage("start");
@@ -207,7 +212,7 @@ export default function Home() {
       v: 1,
       stage: stage === "test" ? "start" : stage,
       lang,
-      messages,
+      messages: messages.slice(-100),
       traits,
       ranking,
       field,
@@ -219,7 +224,6 @@ export default function Home() {
       pool,
       plan,
       timeline,
-      hiddenFields,
       showCount,
     };
     const key = localKey();
@@ -242,7 +246,7 @@ export default function Home() {
     }, 800);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loaded, user, stage, lang, messages, traits, ranking, field, hidden, liked, majors, beyond, board, pool, plan, timeline, hiddenFields, showCount]);
+  }, [loaded, user, stage, lang, messages, traits, ranking, field, hidden, liked, majors, beyond, board, pool, plan, timeline, showCount]);
 
   async function submitAuth() {
     setAuthBusy(true);
@@ -335,7 +339,6 @@ export default function Home() {
       majors?: string[];
       hidden?: string[];
       context?: string;
-      hiddenFields?: string[];
     } = {}
   ) {
     const useHidden = opts.hidden ?? hidden;
@@ -362,7 +365,6 @@ export default function Home() {
             interested: Object.keys(liked).filter((k) => liked[k] === "interested"),
             maybe: Object.keys(liked).filter((k) => liked[k] === "maybe"),
             notForMe: useHidden,
-            notForMeFields: opts.hiddenFields ?? hiddenFields,
           },
         }),
       });
@@ -468,8 +470,7 @@ export default function Home() {
     (r) =>
       !hidden.includes(r.id) &&
       liked[r.id] !== "interested" &&
-      !!getCareer(r.id, field) &&
-      (field !== null || !hiddenFields.includes(getCareer(r.id, null)?.field ?? ""))
+      !!getCareer(r.id, field)
   );
   const visible = remaining.slice(0, showCount);
 
@@ -587,20 +588,6 @@ export default function Home() {
   }
 
 
-
-  function hideField(f: string) {
-    const next = [...hiddenFields, f];
-    setHiddenFields(next);
-    setBeyond(beyond.filter((b) => getCareer(b.id, null)?.field !== f));
-    // re-rank so the rest of the list reflects it
-    callChat(`(user does not want recommendations in the field: ${f})`, { show: false, hiddenFields: next });
-  }
-
-  function unhideField(f: string) {
-    const next = hiddenFields.filter((x) => x !== f);
-    setHiddenFields(next);
-    callChat(`(user is open to the field again: ${f})`, { show: false, hiddenFields: next });
-  }
 
   function hideCareer(id: string) {
     const nextHidden = [...hidden, id];
@@ -944,21 +931,6 @@ export default function Home() {
                     )
                   )}
                 </div>
-              </div>
-            )}
-
-            {!field && hiddenFields.length > 0 && (
-              <div className="flex flex-wrap items-center gap-1.5 mb-3 text-xs text-slate-500">
-                {t.hiddenFields}
-                {hiddenFields.map((f) => (
-                  <button
-                    key={f}
-                    onClick={() => unhideField(f)}
-                    className="rounded-full px-2 py-0.5 border bg-slate-50 hover:bg-slate-100"
-                  >
-                    {fieldName(f, lang)} ×
-                  </button>
-                ))}
               </div>
             )}
 
