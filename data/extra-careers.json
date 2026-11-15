@@ -82,5 +82,223 @@
       "summary": "Computer & Information Research Scientists (O*NET 15-1221.00)",
       "skills": []
     }
+  ],
+  "__onet": [
+    {
+      "id": "onet-29-1129.01",
+      "title": "Art Therapists",
+      "onetCode": "29-1129.01",
+      "field": "Mental Health",
+      "summary": "Use art making and counseling techniques to help clients explore emotions and improve mental well-being.",
+      "skills": [
+        "Active Listening",
+        "Therapeutic Assessment",
+        "Visual Arts Expression"
+      ]
+    },
+    {
+      "id": "onet-27-1021.00",
+      "title": "Commercial & Industrial Designers",
+      "onetCode": "27-1021.00",
+      "field": "Design & Engineering",
+      "summary": "Design and develop manufactured goods that combine aesthetics, ergonomics, and practical usability.",
+      "skills": [
+        "Conceptual Sketching",
+        "User Ergonomics",
+        "Prototyping"
+      ]
+    },
+    {
+      "id": "onet-21-1014.00",
+      "title": "Mental Health Counselors",
+      "onetCode": "21-1014.00",
+      "field": "Counseling",
+      "summary": "Guide individuals and groups through emotional, cognitive, and interpersonal difficulties toward healing.",
+      "skills": [
+        "Active Listening",
+        "Psychological Counseling",
+        "Compassion"
+      ]
+    },
+    {
+      "id": "onet-19-1012.00",
+      "title": "Food Scientists & Technologists",
+      "onetCode": "19-1012.00",
+      "field": "Food Science",
+      "summary": "Investigate biological and chemical properties of foods to innovate and improve nutritional food products.",
+      "skills": [
+        "Scientific Research",
+        "Quality Testing",
+        "Ingredient Chemistry"
+      ]
+    },
+    {
+      "id": "onet-35-1011.00",
+      "title": "Chefs & Head Cooks",
+      "onetCode": "35-1011.00",
+      "field": "Food & Hospitality",
+      "summary": "Direct food preparation, plan menus, and oversee culinary production in restaurants or bakeries.",
+      "skills": [
+        "Menu Development",
+        "Station Organization",
+        "Culinary Techniques"
+      ]
+    },
+    {
+      "id": "onet-17-3011.00",
+      "title": "Architectural & Civil Drafters",
+      "onetCode": "17-3011.00",
+      "field": "Drafting & Architecture",
+      "summary": "Translate architectural and engineering designs into detailed technical plans and schematics using software.",
+      "skills": [
+        "CAD Drafting",
+        "Technical Accuracy",
+        "Visual Layout"
+      ]
+    },
+    {
+      "id": "onet-29-1122.00",
+      "title": "Occupational Therapists",
+      "onetCode": "29-1122.00",
+      "field": "Healthcare",
+      "summary": "Help injured, ill, or disabled patients develop or recover skills needed for daily life and work.",
+      "skills": [
+        "Empathy & Listening",
+        "Functional Analysis",
+        "Treatment Planning"
+      ]
+    },
+    {
+      "id": "onet-51-9081.00",
+      "title": "Dental Laboratory Technicians",
+      "onetCode": "51-9081.00",
+      "field": "Crafts & Healthcare",
+      "summary": "Construct or repair custom dental devices, bridges, and crowns using detailed plaster and wax impressions.",
+      "skills": [
+        "Hand-Eye Coordination",
+        "Material Crafting",
+        "Technical Precision"
+      ]
+    },
+    {
+      "id": "onet-27-1014.00",
+      "title": "Special Effects Artists & Animators",
+      "onetCode": "27-1014.00",
+      "field": "Digital Arts",
+      "summary": "Create two- and three-dimensional images depicting objects in motion or realistic visual illusions.",
+      "skills": [
+        "Storyboarding",
+        "Digital Illustration",
+        "Motion Dynamics"
+      ]
+    },
+    {
+      "id": "onet-51-3011.00",
+      "title": "Bakers",
+      "onetCode": "51-3011.00",
+      "field": "Food & Culinary",
+      "summary": "Prepare and bake artisan breads, pastries, and savory baked goods according to precise recipes.",
+      "skills": [
+        "Recipe Precision",
+        "Fermentation Knowledge",
+        "Kitchen Organization"
+      ]
+    },
+    {
+      "id": "onet-17-2112.00",
+      "title": "Industrial Engineers",
+      "onetCode": "17-2112.00",
+      "field": "Engineering",
+      "summary": "Design efficient systems that integrate workers, machines, materials, and energy to produce products.",
+      "skills": [
+        "Process Optimization",
+        "System Analysis",
+        "Workflow Layout"
+      ]
+    },
+    {
+      "id": "onet-17-1021.00",
+      "title": "Cartographers & Photogrammetrists",
+      "onetCode": "17-1021.00",
+      "field": "Geospatial Science",
+      "summary": "Collect and measure spatial data to design accurate, aesthetically organized maps and visual charts.",
+      "skills": [
+        "Map Design",
+        "Spatial Analysis",
+        "Data Organization"
+      ]
+    },
+    {
+      "id": "onet-17-1011.00",
+      "title": "Architects",
+      "onetCode": "17-1011.00",
+      "field": "Architecture",
+      "summary": "Plan and design structures that balance visual aesthetic qualities with safety and structural utility.",
+      "skills": [
+        "Architectural Drawing",
+        "Spatial Organization",
+        "Building Codes"
+      ]
+    },
+    {
+      "id": "onet-29-1127.00",
+      "title": "Speech-Language Pathologists",
+      "onetCode": "29-1127.00",
+      "field": "Healthcare",
+      "summary": "Assess and treat speech, language, voice, and swallowing disorders across diverse age groups.",
+      "skills": [
+        "Diagnostic Evaluation",
+        "Empathetic Communication",
+        "Anatomical Knowledge"
+      ]
+    },
+    {
+      "id": "onet-19-1032.00",
+      "title": "Foresters",
+      "onetCode": "19-1032.00",
+      "field": "Natural Resources",
+      "summary": "Manage, protect, and restore public and private forested lands through conservation science.",
+      "skills": [
+        "Ecological Assessment",
+        "Land Stewardship",
+        "Field Data Collection"
+      ]
+    },
+    {
+      "id": "onet-17-1012.00",
+      "title": "Landscape Architects",
+      "onetCode": "17-1012.00",
+      "field": "Environmental Design",
+      "summary": "Plan and design land areas for parks, campuses, and recreation while preserving natural environments.",
+      "skills": [
+        "Landscape Illustration",
+        "Site Planning",
+        "Environmental Analysis"
+      ]
+    },
+    {
+      "id": "onet-27-1025.00",
+      "title": "Interior Designers",
+      "onetCode": "27-1025.00",
+      "field": "Design",
+      "summary": "Make indoor spaces functional, safe, and beautiful by selecting colors, materials, and layout plans.",
+      "skills": [
+        "Space Planning",
+        "Drawing & Rendering",
+        "Color Theory"
+      ]
+    },
+    {
+      "id": "onet-25-4022.00",
+      "title": "Librarians & Media Collections Specialists",
+      "onetCode": "25-4022.00",
+      "field": "Information Services",
+      "summary": "Select, catalog, and organize informational materials while helping patrons conduct meaningful research.",
+      "skills": [
+        "Cataloging",
+        "Information Retrieval",
+        "Patron Support"
+      ]
+    }
   ]
 }

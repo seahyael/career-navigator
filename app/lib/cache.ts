@@ -11,10 +11,20 @@ export type MarketEntry = { fetchedAt: string; postings: unknown[]; analysis?: R
 type Career = { id: string; title: string; onetCode?: string; field?: string; summary: string; skills: string[] };
 
 let ready: Promise<unknown> | null = null;
+
+// A slow or dropped database connection must never hang a request: give up after 3 seconds and fall back.
+function timed<T>(p: Promise<T>, ms = 3000): Promise<T> {
+  return Promise.race([
+    p,
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error("database timeout")), ms)),
+  ]);
+}
+
 function db() {
   const sql = getSql();
   if (!sql) return null;
-  ready ??= (async () => {
+  ready ??= timed(
+    (async () => {
     await sql`
       CREATE TABLE IF NOT EXISTS market_cache (
         career_id TEXT PRIMARY KEY,
@@ -27,7 +37,12 @@ function db() {
         field TEXT PRIMARY KEY,
         careers JSONB NOT NULL
       )`;
-  })();
+    })(),
+    5000
+  ).catch((e) => {
+    ready = null; // try again on the next request instead of staying broken
+    throw e;
+  });
   return sql;
 }
 
@@ -51,8 +66,8 @@ export async function getMarket(careerId: string): Promise<MarketEntry | null> {
   const sql = db();
   if (sql) {
     try {
-      await ready;
-      const rows = await sql`SELECT fetched_at, postings, analysis FROM market_cache WHERE career_id = ${careerId}`;
+      await timed(ready as Promise<unknown>);
+      const rows = await timed<Record<string, unknown>[]>(sql`SELECT fetched_at, postings, analysis FROM market_cache WHERE career_id = ${careerId}`);
       if (rows[0]) {
         return {
           fetchedAt: new Date(rows[0].fetched_at as string).toISOString(),
@@ -75,12 +90,12 @@ export async function setMarket(careerId: string, entry: MarketEntry) {
   const sql = db();
   if (sql) {
     try {
-      await ready;
-      await sql`
+      await timed(ready as Promise<unknown>);
+      await timed(sql`
         INSERT INTO market_cache (career_id, fetched_at, postings, analysis)
         VALUES (${careerId}, ${entry.fetchedAt}, ${JSON.stringify(entry.postings)}::jsonb, ${JSON.stringify(entry.analysis ?? null)}::jsonb)
         ON CONFLICT (career_id) DO UPDATE
-          SET fetched_at = EXCLUDED.fetched_at, postings = EXCLUDED.postings, analysis = EXCLUDED.analysis`;
+          SET fetched_at = EXCLUDED.fetched_at, postings = EXCLUDED.postings, analysis = EXCLUDED.analysis`);
       return;
     } catch (e) {
       console.warn("market cache write failed:", e);
@@ -95,8 +110,8 @@ export async function getExtras(): Promise<Record<string, Career[]>> {
   const sql = db();
   if (sql) {
     try {
-      await ready;
-      const rows = await sql`SELECT field, careers FROM extra_careers`;
+      await timed(ready as Promise<unknown>);
+      const rows = await timed<Record<string, unknown>[]>(sql`SELECT field, careers FROM extra_careers`);
       if (rows.length) return Object.fromEntries(rows.map((r) => [r.field as string, r.careers as Career[]]));
     } catch (e) {
       console.warn("extra careers read failed:", e);
@@ -109,10 +124,10 @@ export async function setExtras(field: string, careers: Career[]) {
   const sql = db();
   if (sql) {
     try {
-      await ready;
-      await sql`
+      await timed(ready as Promise<unknown>);
+      await timed(sql`
         INSERT INTO extra_careers (field, careers) VALUES (${field}, ${JSON.stringify(careers)}::jsonb)
-        ON CONFLICT (field) DO UPDATE SET careers = EXCLUDED.careers`;
+        ON CONFLICT (field) DO UPDATE SET careers = EXCLUDED.careers`);
       return;
     } catch (e) {
       console.warn("extra careers write failed:", e);

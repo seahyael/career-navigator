@@ -1,5 +1,6 @@
 import { generateJSON } from "../../lib/gemini";
 import { trimTraits } from "../../lib/cache";
+import { fallbackChat } from "../../lib/fallback";
 
 export const maxDuration = 60;
 
@@ -54,20 +55,31 @@ export async function POST(req: Request) {
       pendingConflict = null as Conflict | null,
     } = await req.json();
 
-    const out: {
+    let out: {
       newTraits?: Trait[];
       upgrades?: { label: string; newLabel?: string | null }[];
       conflicts?: Conflict[];
       resolve?: string | null;
       facts?: Facts | null;
       followUp?: string | null;
-    } = await generateJSON(PROMPT, {
-      newMessage: message,
-      contextNote: context,
-      currentTraits: trimTraits(traits as Trait[]),
-      pendingConflict,
-      earlierMessages: (history as string[]).slice(-15),
-    });
+    };
+    try {
+      out = await generateJSON(
+        PROMPT,
+        {
+          newMessage: message,
+          contextNote: context,
+          currentTraits: trimTraits(traits as Trait[]),
+          pendingConflict,
+          earlierMessages: (history as string[]).slice(-15),
+        },
+        { timeoutMs: 20000 }
+      );
+    } catch (e) {
+      // Gemini out of quota or too slow: simple rules on the user's own words instead.
+      console.warn("chat: using no-AI fallback:", String(e).slice(0, 120));
+      out = fallbackChat({ message, traits: traits as Trait[], history: history as string[], pendingConflict });
+    }
 
     const known = new Set((traits as Trait[]).map((t) => t.label.toLowerCase()));
     const conflicts = (out.conflicts ?? [])

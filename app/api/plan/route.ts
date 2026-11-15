@@ -1,6 +1,7 @@
 import { AI_LANG_RULE, type Lang } from "../../i18n";
 import { fetchOnet } from "../../lib/onet";
 import { generateJSON } from "../../lib/gemini";
+import { fallbackPlan } from "../../lib/fallback";
 import { getMarket, trimTraits } from "../../lib/cache";
 
 export const maxDuration = 60;
@@ -161,11 +162,18 @@ export async function POST(req: Request) {
       marketEvidence: evidence,
     };
 
-    const data = await generateJSON(
-      `${PROMPT}\n\nLANGUAGE: ${rule} Keep label, kind, careers, careerId and option "title" values exactly as specified (English).`,
-      payload,
-      { temperature: 0.4 }
-    );
+    let data;
+    try {
+      data = await generateJSON(
+        `${PROMPT}\n\nLANGUAGE: ${rule} Keep label, kind, careers, careerId and option "title" values exactly as specified (English).`,
+        payload,
+        { temperature: 0.4, timeoutMs: 40000 }
+      );
+    } catch (e) {
+      // Gemini out of quota or too slow: a template roadmap built from O*NET skills and LinkedIn counts done in code.
+      console.warn("plan: using no-AI fallback:", String(e).slice(0, 120));
+      data = fallbackPlan({ careers: list, timeline: timeline as never, evidence: evidence as never });
+    }
     const labels = ["required", "recommended", "explore"];
     const stamp = Date.now().toString(36);
     const stages = (data.stages ?? []).map(
