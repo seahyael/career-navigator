@@ -69,7 +69,7 @@ skills: top 8 by count.`;
 
 export async function POST(req: Request) {
   try {
-    const { careerId, title, traits = [], lang = "en", refresh = false, cachedOnly = false } = await req.json();
+    const { careerId, title, traits = [], lang = "en", refresh = false, cachedOnly = false, scrapeOnly = false } = await req.json();
     if (!careerId || !title) return Response.json({ error: "careerId and title are required" }, { status: 400 });
     const rule = AI_LANG_RULE[(lang as Lang) in AI_LANG_RULE ? (lang as Lang) : "en"];
 
@@ -77,13 +77,17 @@ export async function POST(req: Request) {
     const stale = entry && Date.now() - new Date(entry.fetchedAt).getTime() > STALE_DAYS * 864e5;
     // Opening a career only reads the cache; scraping runs when a career is added to the roadmap.
     if (!entry && cachedOnly) return Response.json({ pending: true });
+    let fetchedNow = false;
     if (!cachedOnly && (!entry || refresh || stale)) {
+      fetchedNow = true;
       const postings = await fetchPostings(title);
       entry = { fetchedAt: new Date().toISOString(), postings, analysis: null };
       await setMarket(careerId, entry);
     }
 
     if (!entry) return Response.json({ pending: true });
+    // Adding a career to the roadmap only collects postings (no AI). Analysis runs when the user opens the career.
+    if (scrapeOnly) return Response.json({ ok: true, postingsCount: (entry.postings as unknown[]).length });
     const postings = (entry.postings as Posting[]).filter((p) => p && (p.job_title || p.job_summary));
     if (!postings.length) return Response.json({ error: "No postings found for this career right now." }, { status: 404 });
 
@@ -93,14 +97,26 @@ export async function POST(req: Request) {
       text: (p.job_summary ?? "").slice(0, 1500),
     }));
 
-    const analysis = await generateJSON(
-      `${PROMPT}\n\nLANGUAGE: ${rule}`,
-      { career: title, userTraits: traits, postings: compact },
-      { temperature: 0.3, maxOutputTokens: 4096 }
-    );
-
-    // Save the analysis so the roadmap can use it as evidence.
-    await setMarket(careerId, { ...entry, analysis: { postingsCount: postings.length, ...analysis } });
+    // Reuse the saved analysis when the postings did not change (no Gemini call). Only "which skills you have"
+    // depends on the user, so that part is matched against their traits here.
+    const saved = entry.analysis as (Record<string, unknown> & { lang?: string; skills?: { name: string }[] }) | null;
+    let analysis: Record<string, unknown>;
+    if (saved && !fetchedNow && (saved.lang ?? "en") === lang) {
+      const labels = (traits as { label?: string }[]).map((t) => (t.label ?? "").toLowerCase()).filter(Boolean);
+      const has = (skill: string) => {
+        const s = skill.toLowerCase();
+        return labels.some((l) => l.includes(s) || s.includes(l));
+      };
+      analysis = { ...saved, skills: (saved.skills ?? []).map((s) => ({ ...s, have: has(s.name) })) };
+    } else {
+      analysis = await generateJSON(
+        `${PROMPT}\n\nLANGUAGE: ${rule}`,
+        { career: title, userTraits: traits, postings: compact },
+        { temperature: 0.3, maxOutputTokens: 4096 }
+      );
+      // Save the analysis so the roadmap can use it as evidence.
+      await setMarket(careerId, { ...entry, analysis: { postingsCount: postings.length, lang, ...analysis } });
+    }
 
     const salaries = postings
       .map((p) => p.base_salary)

@@ -145,75 +145,22 @@ export default function Roadmap({
 
   return (
     <div className="space-y-4">
-      {/* Timeline */}
+      {/* Timeline: comes from the chat, not a form */}
       <div className="bg-white rounded-2xl border p-4">
         <h2 className="font-semibold">{t.timelineTitle}</h2>
-        <p className="text-xs text-slate-500 mb-3">{t.timelineHint}</p>
-        <div className="grid sm:grid-cols-2 gap-3 text-xs text-slate-600">
-          <label className="flex flex-col gap-1">
-            {t.statusLabel}
-            <select value={timeline.status} onChange={(e) => setTimeline({ ...timeline, status: e.target.value })} className={select}>
-              {Object.keys(t.statuses).map((k) => (
-                <option key={k} value={k}>
-                  {t.statuses[k]}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="flex flex-col gap-1">
-            {t.gradLabel}
-            <div className="flex gap-2">
-              <select
-                value={timeline.gradTerm}
-                onChange={(e) => setTimeline({ ...timeline, gradTerm: e.target.value })}
-                className={select}
-              >
-                {Object.keys(t.terms).map((k) => (
-                  <option key={k} value={k}>
-                    {t.terms[k]}
-                  </option>
-                ))}
-              </select>
-              <select
-                value={timeline.gradYear ?? ""}
-                onChange={(e) => setTimeline({ ...timeline, gradYear: e.target.value ? Number(e.target.value) : null })}
-                className={select}
-              >
-                <option value="">—</option>
-                {YEARS.map((y) => (
-                  <option key={y} value={y}>
-                    {y}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </label>
-          <label className="flex flex-col gap-1">
-            {t.calendarLabel}
-            <select
-              value={timeline.calendar}
-              onChange={(e) => setTimeline({ ...timeline, calendar: e.target.value as Timeline["calendar"] })}
-              className={select}
-            >
-              {Object.keys(t.calendars).map((k) => (
-                <option key={k} value={k}>
-                  {t.calendars[k]}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="flex flex-col gap-1">
-            {t.hoursLabel}: <span className="font-semibold text-slate-800">{timeline.hoursPerWeek}h</span>
-            <input
-              type="range"
-              min={1}
-              max={20}
-              value={timeline.hoursPerWeek}
-              onChange={(e) => setTimeline({ ...timeline, hoursPerWeek: Number(e.target.value) })}
-              className="accent-blue-600"
-            />
-          </label>
+        <div className="mt-2 flex flex-wrap gap-2 text-xs">
+          <span className="rounded-full border px-3 py-1 text-slate-700">
+            {t.statusLabel} {timeline.status ? t.statuses[timeline.status] ?? timeline.status : "—"}
+          </span>
+          <span className="rounded-full border px-3 py-1 text-slate-700">
+            {t.gradLabel}:{" "}
+            {timeline.gradYear ? `${timeline.gradTerm ? t.terms[timeline.gradTerm] + " " : ""}${timeline.gradYear}` : "—"}
+          </span>
+          <span className="rounded-full border px-3 py-1 text-slate-700">
+            {t.hoursLabel}: {timeline.hoursPerWeek}h
+          </span>
         </div>
+        <p className="text-xs text-slate-500 mt-2">{t.timelineFromChat}</p>
       </div>
 
       {/* Board */}

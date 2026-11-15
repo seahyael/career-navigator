@@ -79,7 +79,7 @@ function getStaticCareer(id: string, field: string | null) {
 
 export default function Home() {
   const [messages, setMessages] = useState<Msg[]>([]);
-  const [lang, setLangState] = useState<Lang>("en");
+  const lang = "en" as Lang; // English only for now ("as" keeps the old Korean checks valid)
   const t = T[lang];
   const [input, setInput] = useState("");
   const [traits, setTraits] = useState<Trait[]>([]);
@@ -91,7 +91,8 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [stage, setStage] = useState<"start" | "test" | "chat">("start");
   const [openCareer, setOpenCareer] = useState<string | null>(null);
-  const [majorInput, setMajorInput] = useState("");
+  const [finding, setFinding] = useState(false);
+  const [findError, setFindError] = useState("");
   // A new message that contradicts an older trait: the coach asks before changing anything.
   const [pendingConflict, setPendingConflict] = useState<{
     label: string;
@@ -155,7 +156,6 @@ export default function Home() {
     if (d.plan && Array.isArray((d.plan as Plan).decisions)) setPlan(d.plan);
     if (d.timeline) setTimeline(d.timeline);
     if (d.showCount) setShowCount(d.showCount);
-    if (d.lang === "ko" || d.lang === "en") setLangState(d.lang);
     if (d.stage === "chat") setStage("chat");
   }
 
@@ -318,7 +318,7 @@ export default function Home() {
     fetch("/api/market", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ careerId: next.id, title: next.title, traits, lang }),
+      body: JSON.stringify({ careerId: next.id, title: next.title, scrapeOnly: true }),
     })
       .catch((e) => console.warn("LinkedIn scan failed:", e))
       .finally(() => {
@@ -347,37 +347,10 @@ export default function Home() {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
 
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem("lang");
-      if (saved === "ko" || saved === "en") setLangState(saved);
-    } catch {}
-  }, []);
 
-  function setLang(l: Lang) {
-    setLangState(l);
-    try {
-      localStorage.setItem("lang", l);
-    } catch {}
-  }
-
-  async function callChat(
-    message: string,
-    opts: {
-      show?: boolean;
-      field?: string | null;
-      traits?: Trait[];
-      majors?: string[];
-      hidden?: string[];
-      context?: string;
-    } = {}
-  ) {
-    const useHidden = opts.hidden ?? hidden;
-    const useMajors = opts.majors ?? majors;
-    const show = opts.show ?? true;
-    const useField = opts.field !== undefined ? opts.field : field;
-    const useTraits = opts.traits ?? traits;
-    if (show) setMessages((m) => [...m, { role: "user", text: message }]);
+  // The ONLY place the AI reads what the user says. It updates About me and asks one follow-up question.
+  async function callChat(message: string, opts: { context?: string } = {}) {
+    setMessages((m) => [...m, { role: "user", text: message }]);
     setLoading(true);
     try {
       const res = await fetch("/api/chat", {
@@ -385,33 +358,23 @@ export default function Home() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           message,
-          traits: useTraits,
-          confirmedField: useField,
-          lang,
-          majors: useMajors,
+          traits,
           context: opts.context ?? null,
-          pool,
           pendingConflict,
           history: messages.filter((m) => m.role === "user").map((m) => m.text).slice(-15),
-          prevRanking: useField === field ? ranking : [],
-          feedback: {
-            interested: Object.keys(liked).filter((k) => liked[k] === "interested"),
-            maybe: Object.keys(liked).filter((k) => liked[k] === "maybe"),
-            notForMe: useHidden,
-          },
         }),
       });
       const data = await res.json();
       if (!res.ok || data.error) throw new Error(data.error);
 
-      const known = new Set(useTraits.map((t) => t.label.toLowerCase()));
+      const known = new Set(traits.map((x) => x.label.toLowerCase()));
       const fresh: Trait[] = (data.newTraits ?? [])
-        .filter((t: Trait) => !known.has(t.label.toLowerCase()))
-        .map((t: Trait, i: number) => ({ ...t, id: `${t.id}-${Date.now()}-${i}` }));
-      // Interests the coach confirmed as strengths move over.
+        .filter((x: Trait) => !known.has(x.label.toLowerCase()))
+        .map((x: Trait, i: number) => ({ ...x, id: `${x.id}-${Date.now()}-${i}` }));
+      // Interests the user showed they are good at move to strengths.
       const upgrades: { label: string; newLabel?: string | null }[] = data.upgrades ?? [];
       const promoted: string[] = [];
-      const updated = useTraits.map((tr) => {
+      let updated = traits.map((tr) => {
         const u = upgrades.find((x) => x.label?.toLowerCase() === tr.label.toLowerCase());
         if (u && tr.type === "interest") {
           promoted.push(u.newLabel || tr.label);
@@ -419,44 +382,80 @@ export default function Home() {
         }
         return tr;
       });
-      // The user agreed to update a trait the coach asked about.
+      // The user agreed to change a trait the coach asked about.
       const rep = data.replaced as { label: string; newLabel: string; newType: string } | null;
-      const finalTraits = rep
-        ? updated.map((tr) =>
-            tr.label.toLowerCase() === rep.label.toLowerCase()
-              ? { ...tr, label: rep.newLabel, type: (rep.newType || tr.type) as TraitType, source: message }
-              : tr
-          )
-        : updated;
-      setTraits([...finalTraits, ...fresh]);
-      if (rep) showToast(t.traitUpdated(rep.label, rep.newLabel));
+      if (rep) {
+        updated = updated.map((tr) =>
+          tr.label.toLowerCase() === rep.label.toLowerCase()
+            ? { ...tr, label: rep.newLabel, type: (rep.newType || tr.type) as TraitType, source: message }
+            : tr
+        );
+        showToast(t.traitUpdated(rep.label, rep.newLabel));
+      }
+      setTraits([...updated, ...fresh]);
       if (data.conflictDone) setPendingConflict(null);
       if (data.conflict) setPendingConflict(data.conflict);
       if (promoted.length) showToast(t.promoted(promoted.join(", ")));
 
-      const oldPos = new Map(ranking.map((r, i) => [r.id, i]));
-      const newRank: Rank[] = [...(data.ranking ?? [])].sort((a, b) => b.score - a.score);
-      setRising(
-        newRank
-          .filter((r, i) => oldPos.has(r.id) && i < (oldPos.get(r.id) as number))
-          .map((r) => r.id)
-      );
-      setTimeout(() => setRising([]), 2000);
-      setRanking(newRank);
-      if (Array.isArray(data.pool)) setPool(data.pool);
-      if (!useMajors.length) setBeyond([]);
-      else if (data.beyond?.length) setBeyond(data.beyond);
+      // Background the user stated (majors, year, graduation, hours) is used by every later search and roadmap.
+      const f = data.facts ?? {};
+      if (Array.isArray(f.majors) && f.majors.length) setMajors(f.majors);
+      const tl: Partial<Timeline> = {};
+      if (f.status) tl.status = f.status;
+      if (f.gradTerm) tl.gradTerm = f.gradTerm;
+      if (f.gradYear) tl.gradYear = f.gradYear;
+      if (f.hoursPerWeek) tl.hoursPerWeek = f.hoursPerWeek;
+      const gotFacts = (Array.isArray(f.majors) && f.majors.length) || Object.keys(tl).length;
+      if (Object.keys(tl).length) setTimeline((prev) => ({ ...prev, ...tl }));
+      if (gotFacts) showToast(t.backgroundSaved);
 
       const replies: Msg[] = [];
-      if (data.reply) replies.push({ role: "coach", text: data.reply });
+      if (fresh.length) replies.push({ role: "coach", text: t.addedTraits(fresh.map((x) => x.label).join(", ")) });
       if (data.conflict?.question) replies.push({ role: "coach", text: data.conflict.question });
       else if (data.followUp) replies.push({ role: "coach", text: data.followUp });
+      if (!replies.length) replies.push({ role: "coach", text: t.noted });
       setMessages((m) => [...m, ...replies]);
     } catch (e) {
       console.warn("chat failed:", e);
-      setMessages((m) => [...m, { role: "coach", text: t.lost }]);
+      setMessages((m) => [...m, { role: "coach", text: String(e).includes("quota") ? t.quota : t.lost }]);
     } finally {
       setLoading(false);
+    }
+  }
+
+  // "Find careers" button: rank 15 careers from the full O*NET list, using only About me.
+  async function findCareers() {
+    if (finding) return;
+    if (!traits.length) {
+      setFindError(t.findNeedsTraits);
+      return;
+    }
+    setFinding(true);
+    setFindError("");
+    try {
+      const res = await fetch("/api/careers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          traits,
+          majors,
+          timeline,
+          notInterested: hidden.map((id) => getCareer(id, null)?.title ?? id),
+          added: board.map((b) => b.title),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) throw new Error(data.error);
+      const found = data.careers as (Career & { score: number; reason: string })[];
+      // Keep the careers already on the roadmap findable, then the new list.
+      const keep = pool.filter((c) => board.some((b) => b.id === c.id));
+      setPool([...found.map(({ score: _s, reason: _r, ...c }) => c), ...keep.filter((k) => !found.some((f) => f.id === k.id))]);
+      setRanking(found.map((c) => ({ id: c.id, score: c.score, reason: c.reason })));
+      setField(null);
+    } catch (e) {
+      setFindError(String(e).includes("quota") ? t.quota : t.findFailed);
+    } finally {
+      setFinding(false);
     }
   }
 
@@ -468,56 +467,31 @@ export default function Home() {
     else callChat(text);
   }
 
+  // Filter the current list by field. No AI, no new list.
   function confirmField(f: string) {
-    setField(f);
-    setShowCount(SHOW_COUNT);
-    setHidden([]);
-    setRanking([]);
-    callChat(`(user wants to see more careers in the field: ${f})`, { show: false, field: f });
-  }
-
-  function toggleMajor(m: string) {
-    const next = majors.includes(m) ? majors.filter((x) => x !== m) : [...majors, m];
-    setMajors(next);
-    setBeyond([]);
-    if (traits.length) {
-      callChat(`(user's majors are now: ${next.join(", ") || "none"})`, { show: false, majors: next });
-    }
-  }
-
-  function undo() {
-    setField(null);
-    setShowCount(SHOW_COUNT);
-    setHidden([]);
-    setRanking([]);
-    callChat("(user went back to all careers)", { show: false, field: null });
+    setField(field === f ? null : f);
   }
 
   function loadSample() {
     const seed = sampleTraits(lang);
     setTraits(seed);
-    setMessages((m) => [...m, { role: "user", text: t.sampleMsg }]);
-    callChat("(sample student profile loaded)", { show: false, traits: seed });
+    setMessages((m) => [...m, { role: "user", text: t.sampleMsg }, { role: "coach", text: t.sampleLoaded }]);
   }
 
   function finishTest(seed: Trait[], top: string[]) {
     setTraits(seed);
     setStage("chat");
-    setMessages((m) => [...m, { role: "user", text: `${t.finishedTest}${top.join(" + ")})` }]);
-    callChat(`(user finished the interest test; top interest areas: ${top.join(", ")})`, {
-      show: false,
-      traits: seed,
-    });
+    setMessages((m) => [
+      ...m,
+      { role: "user", text: `${t.finishedTest}${top.join(" + ")})` },
+      { role: "coach", text: t.sampleLoaded },
+    ]);
   }
 
-  // Careers marked "Interested" move to the roadmap, so they leave the explore list.
-  const remaining = ranking.filter(
-    (r) =>
-      !hidden.includes(r.id) &&
-      liked[r.id] !== "interested" &&
-      !!getCareer(r.id, field)
-  );
-  const visible = remaining.slice(0, showCount);
+  // "Not interested" careers leave the list; added ones stay and are marked.
+  const remaining = ranking.filter((r) => !hidden.includes(r.id) && !!getCareer(r.id, null));
+  const visible = field ? remaining.filter((r) => getCareer(r.id, null)?.field === field) : remaining;
+  const isAdded = (id: string) => board.some((b) => b.id === id);
 
   function markCareer(r: Rank, k: string, c: Career) {
     setLiked({ ...liked, [r.id]: k });
@@ -531,13 +505,7 @@ export default function Home() {
         setBoard([...board, { ...c, titleKo: r.titleKo }]);
         if (plan.path) setPlan({ ...plan, stale: true });
         showToast(t.addedToRoadmap, true);
-        askWhy(lang === "ko" && r.titleKo ? r.titleKo : c.title, "like");
-      }
-      // the next career slides into the freed spot
-      const newcomer = remaining.filter((x) => x.id !== r.id)[showCount - 1];
-      if (newcomer) {
-        setRising([newcomer.id]);
-        setTimeout(() => setRising([]), 2000);
+        askWhy(c.title, "like");
       }
     } else {
       setBoard(board.filter((b) => b.id !== r.id));
@@ -636,27 +604,9 @@ export default function Home() {
 
 
   function hideCareer(id: string) {
-    const nextHidden = [...hidden, id];
-    setHidden(nextHidden);
-    // Inside a field there are few options: ask for more (the server pulls extra O*NET careers if needed).
-    if (field && remaining.length - 1 < showCount) {
-      const title = getCareer(id, field)?.title ?? id;
-      callChat(`(user marked "${title}" as not for me; suggest other paths in this field)`, {
-        show: false,
-        hidden: nextHidden,
-      });
-      return;
-    }
-    // the next career in line slides into the freed spot: highlight it
-    const newcomer = remaining.filter((r) => r.id !== id)[showCount - 1];
-    if (newcomer) {
-      setRising([newcomer.id]);
-      setTimeout(() => setRising([]), 2000);
-    }
+    setHidden([...hidden, id]);
   }
-  const topFields = field
-    ? []
-    : (Array.from(new Set(visible.map((r) => getCareer(r.id, null)?.field).filter(Boolean))) as string[]).slice(0, 3);
+  const topFields = Array.from(new Set(remaining.map((r) => getCareer(r.id, null)?.field).filter(Boolean))) as string[];
 
 
   const authButton = user ? (
@@ -727,10 +677,7 @@ export default function Home() {
   if (stage === "start") {
     return (
       <main className="min-h-screen bg-slate-50 text-slate-900 flex items-center justify-center p-6">
-        <div className="fixed top-4 right-4 flex items-center gap-3">
-          {authButton}
-          <LangToggle lang={lang} setLang={setLang} />
-        </div>
+        <div className="fixed top-4 right-4 flex items-center gap-3">{authButton}</div>
         {authModal}
         <div className="max-w-3xl w-full text-center">
           <h1 className="text-3xl font-semibold">Find Your Courses</h1>
@@ -761,9 +708,6 @@ export default function Home() {
   if (stage === "test") {
     return (
       <>
-        <div className="fixed top-4 right-4 z-10">
-          <LangToggle lang={lang} setLang={setLang} />
-        </div>
         <QuickTest lang={lang} onDone={finishTest} onSkip={() => setStage("chat")} />
       </>
     );
@@ -784,7 +728,6 @@ export default function Home() {
             {t.startOver}
           </button>
           {authButton}
-          <LangToggle lang={lang} setLang={setLang} />
         </div>
       </header>
       {authModal}
@@ -889,7 +832,7 @@ export default function Home() {
                     traits.filter((x) => x.type === "strength").length,
                     traits.filter((x) => x.type === "interest").length
                   )}
-                  {majors.length > 0 && ` · ${majors.map((m) => fieldName(m, lang)).join(", ")}`}
+                  {majors.length > 0 && ` · ${majors.join(", ")}`}
                 </p>
               </div>
               <button
@@ -960,49 +903,56 @@ export default function Home() {
           ) : (
           <>
           <div className="bg-white rounded-2xl border p-4">
-            <div className="flex items-center justify-between mb-1">
-              <h2 className="font-semibold">{field ? t.pathsInside(fieldName(field, lang)) : t.careersForYou}</h2>
-              {field && (
-                <button onClick={undo} className="text-sm text-blue-600">
-                  {t.backAll}
-                </button>
-              )}
+            <div className="flex items-center justify-between gap-2 mb-1">
+              <div>
+                <h2 className="font-semibold">{t.careersForYou}</h2>
+                <p className="text-xs text-slate-500">{t.findHint}</p>
+              </div>
+              <button
+                onClick={findCareers}
+                disabled={finding || loading}
+                className="text-sm rounded-full px-4 py-1.5 bg-blue-600 text-white disabled:opacity-50 shrink-0"
+              >
+                {finding ? t.finding : ranking.length ? t.findAgain : t.findButton}
+              </button>
             </div>
-            {field && <div className="text-xs text-slate-500 mb-3">{t.allCareers} › {fieldName(field, lang)}</div>}
+            {findError && <p className="text-sm text-red-600 mt-2">{findError}</p>}
 
-            {topFields.length > 0 && (
-              <div className="my-3">
-                <div className="text-xs text-slate-500 mb-2">{t.fieldsFit}</div>
-                <div className="flex flex-wrap gap-2">
-                  {topFields.map((f) => (
-                    <button
-                      key={f}
-                      onClick={() => confirmField(f)}
-                      className="text-sm rounded-full px-3 py-1 bg-blue-600 text-white"
-                    >
-                      {t.seeMoreIn(fieldName(f, lang))}
-                    </button>
-                  ))}
-                </div>
+            {topFields.length > 1 && (
+              <div className="my-3 flex flex-wrap gap-2">
+                <button
+                  onClick={() => setField(null)}
+                  className={`text-xs rounded-full px-3 py-1 border ${!field ? "bg-slate-900 text-white border-slate-900" : "text-slate-600"}`}
+                >
+                  {t.allFields} ({remaining.length})
+                </button>
+                {topFields.map((f) => (
+                  <button
+                    key={f}
+                    onClick={() => confirmField(f)}
+                    className={`text-xs rounded-full px-3 py-1 border ${field === f ? "bg-slate-900 text-white border-slate-900" : "text-slate-600"}`}
+                  >
+                    {f} ({remaining.filter((r) => getCareer(r.id, null)?.field === f).length})
+                  </button>
+                ))}
               </div>
             )}
 
             {visible.length === 0 && (
-              <p className="text-sm text-slate-400">
-                {loading ? t.ranking : t.rankingEmpty}
-              </p>
+              <p className="text-sm text-slate-400 mt-3">{finding ? t.finding : t.rankingEmpty}</p>
             )}
 
             <AnimatePresence mode="wait">
               <motion.div
-                key={field ?? "all"}
+                key={`${field ?? "all"}-${ranking.length}`}
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -8 }}
                 className="space-y-3"
               >
                 {visible.map((r, i) => {
-                  const c = getCareer(r.id, field)!;
+                  const c = getCareer(r.id, null)!;
+                  const added = isAdded(r.id);
                   return (
                     <motion.div
                       layout
@@ -1010,17 +960,16 @@ export default function Home() {
                       transition={{ type: "spring", stiffness: 300, damping: 30 }}
                       className={`border rounded-xl p-4 ${
                         rising.includes(r.id) ? "ring-2 ring-emerald-300 bg-emerald-50" : "bg-white"
-                      } ${liked[r.id] === "interested" ? "border-blue-400" : ""}`}
+                      } ${added ? "border-amber-300 bg-amber-50/40" : ""}`}
                     >
                       <div className="flex items-start gap-3">
                         <div className="text-lg font-semibold text-slate-400 w-6">{i + 1}</div>
                         <div className="flex-1">
                           <div className="flex justify-between items-center">
                             <h3 className="font-semibold">
-                              {lang === "ko" && r.titleKo ? r.titleKo : c.title}
-                              {lang === "ko" && r.titleKo && (
-                                <span className="ml-2 text-xs font-normal text-slate-400">{c.title}</span>
-                              )}
+                              {added && <span className="text-amber-500 mr-1">★</span>}
+                              {c.title}
+                              {c.field && <span className="ml-2 text-xs font-normal text-slate-400">{c.field}</span>}
                             </h3>
                             <span className="text-sm text-slate-500">{r.score}</span>
                           </div>
@@ -1033,21 +982,27 @@ export default function Home() {
                           </div>
                           <p className="text-sm italic text-slate-700 mt-2">{r.reason || c.summary}</p>
                           <div className="flex gap-2 mt-3">
-                            <button
-                              onClick={() => markCareer(r, "interested", c)}
-                              className="text-xs rounded-full px-3 py-1 bg-blue-600 text-white hover:bg-blue-700"
-                            >
-                              {t.addToRoadmap}
-                            </button>
-                            <button
-                              onClick={() => {
-                                hideCareer(r.id);
-                                askWhy(lang === "ko" && r.titleKo ? r.titleKo : c.title, "dislike");
-                              }}
-                              className="text-xs border rounded-full px-3 py-1 text-slate-600 hover:bg-slate-50"
-                            >
-                              {t.notInterested}
-                            </button>
+                            {added ? (
+                              <span className="text-xs rounded-full px-3 py-1 bg-amber-100 text-amber-800">★ {t.added}</span>
+                            ) : (
+                              <>
+                                <button
+                                  onClick={() => markCareer(r, "interested", c)}
+                                  className="text-xs rounded-full px-3 py-1 bg-blue-600 text-white hover:bg-blue-700"
+                                >
+                                  {t.addToRoadmap}
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    hideCareer(r.id);
+                                    askWhy(c.title, "dislike");
+                                  }}
+                                  className="text-xs border rounded-full px-3 py-1 text-slate-600 hover:bg-slate-50"
+                                >
+                                  {t.notInterested}
+                                </button>
+                              </>
+                            )}
                             <button
                               onClick={() => setOpenCareer(r.id)}
                               className="ml-auto text-xs rounded-full px-3 py-1 bg-slate-900 text-white"
@@ -1062,14 +1017,6 @@ export default function Home() {
                 })}
               </motion.div>
             </AnimatePresence>
-            {remaining.length > visible.length && (
-              <button
-                onClick={() => setShowCount(showCount + 5)}
-                className="mt-3 w-full text-sm text-slate-500 border border-dashed rounded-xl py-2 hover:bg-slate-50"
-              >
-                {t.showMore(remaining.length - visible.length)}
-              </button>
-            )}
           </div>
           </>
           )}
@@ -1098,44 +1045,18 @@ export default function Home() {
             <h2 className="text-xl font-semibold">{t.aboutMe}</h2>
             <p className="text-xs text-slate-500 mt-1">{t.aboutHint}</p>
 
-            <div className="mt-5">
-              <div className="text-xs font-semibold text-slate-500 mb-1">{t.myMajor}</div>
-              <div className="flex flex-wrap gap-1.5">
-                {Array.from(new Set([...FIELDS, ...majors])).map((f) => (
-                  <button
-                    key={f}
-                    onClick={() => toggleMajor(f)}
-                    disabled={loading}
-                    className={`text-xs rounded-full px-3 py-1 border transition disabled:opacity-50 ${
-                      majors.includes(f) ? "bg-slate-900 text-white border-slate-900" : "text-slate-600 hover:bg-slate-50"
-                    }`}
-                  >
-                    {majors.includes(f) ? "✓ " : ""}
-                    {fieldName(f, lang)}
-                  </button>
-                ))}
-              </div>
-              <form
-                className="mt-2 flex gap-1.5"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  const v = majorInput.trim();
-                  if (v && !majors.includes(v)) toggleMajor(v);
-                  setMajorInput("");
-                }}
-              >
-                <input
-                  value={majorInput}
-                  onChange={(e) => setMajorInput(e.target.value)}
-                  placeholder={t.addMajor}
-                  disabled={loading}
-                  className="flex-1 text-xs border rounded-full px-3 py-1"
-                />
-                <button type="submit" disabled={loading || !majorInput.trim()} className="text-xs rounded-full px-3 py-1 border disabled:opacity-40">
-                  +
-                </button>
-              </form>
-              {majors.length === 0 && <p className="text-xs text-slate-400 mt-1">{t.noMajorYet}</p>}
+            <div className="mt-5 rounded-xl border bg-slate-50 p-3">
+              <div className="text-xs font-semibold text-slate-500 mb-1">{t.background}</div>
+              <ul className="text-sm text-slate-700 space-y-0.5">
+                <li>{t.bgMajors}: {majors.length ? majors.join(", ") : "—"}</li>
+                <li>{t.bgStatus}: {timeline.status ? t.statuses[timeline.status] ?? timeline.status : "—"}</li>
+                <li>
+                  {t.gradLabel}:{" "}
+                  {timeline.gradYear ? `${timeline.gradTerm ? t.terms[timeline.gradTerm] + " " : ""}${timeline.gradYear}` : "—"}
+                </li>
+                <li>{t.hoursLabel}: {timeline.hoursPerWeek}h</li>
+              </ul>
+              <p className="text-xs text-slate-400 mt-2">{t.backgroundHint}</p>
             </div>
 
             <div className="mt-6 space-y-4">
@@ -1250,6 +1171,7 @@ export default function Home() {
           lang={lang}
           fallback={detailFallback ?? ((getCareer(openCareer, field) as BoardCareer | undefined) ?? null)}
           inBoard={board.some((b) => b.id === openCareer)}
+          reason={ranking.find((r) => r.id === openCareer)?.reason ?? ""}
           onClose={() => {
             setOpenCareer(null);
             setDetailFallback(null);

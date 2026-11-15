@@ -14,6 +14,7 @@ type Detail = {
   tasks?: string[];
   strengthsMatch?: { trait: string; why: string }[];
   gaps?: { skill: string; howToStart: string }[];
+  skills?: string[];
   majors?: string[];
   industries?: string[];
   education?: string | null;
@@ -24,6 +25,9 @@ type Detail = {
   error?: string;
 };
 
+// Opened careers are kept for this visit, so opening one again is instant.
+const detailCache = new Map<string, Detail>();
+
 export default function CareerDetail({
   careerId,
   field,
@@ -31,6 +35,7 @@ export default function CareerDetail({
   lang,
   fallback = null,
   inBoard = false,
+  reason = "",
   onClose,
 }: {
   careerId: string;
@@ -39,6 +44,7 @@ export default function CareerDetail({
   lang: Lang;
   fallback?: { id: string; title: string; summary: string; skills: string[]; onetCode?: string } | null;
   inBoard?: boolean;
+  reason?: string;
   onClose: () => void;
 }) {
   const [data, setData] = useState<Detail | null>(null);
@@ -46,14 +52,23 @@ export default function CareerDetail({
 
   useEffect(() => {
     let cancelled = false;
+    const key = careerId;
+    const hit = detailCache.get(key);
+    if (hit) {
+      setData(hit);
+      return;
+    }
     setData(null);
     fetch("/api/career", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ careerId, field, traits, lang, fallback }),
+      body: JSON.stringify({ careerId, field, fallback }),
     })
       .then((r) => r.json())
-      .then((d) => !cancelled && setData(d))
+      .then((d) => {
+        if (!d?.error) detailCache.set(key, d);
+        if (!cancelled) setData(d);
+      })
       .catch((e) => !cancelled && setData({ error: String(e) } as Detail));
     return () => {
       cancelled = true;
@@ -123,34 +138,23 @@ export default function CareerDetail({
               </Section>
             )}
 
-            <div className="grid grid-cols-2 gap-3">
-              <Section title={t.yourStrengths}>
-                {data.strengthsMatch?.length ? (
-                  <ul className="space-y-2 text-sm">
-                    {data.strengthsMatch.map((s) => (
-                      <li key={s.trait}>
-                        <span className="inline-block rounded-full px-2 py-0.5 bg-blue-50 text-blue-700 border border-blue-200 text-xs">
-                          {s.trait}
-                        </span>
-                        <p className="text-slate-600 mt-1">{s.why}</p>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="text-sm text-slate-400">{t.noStrengths}</p>
-                )}
+            {reason && (
+              <Section title={t.whyFits}>
+                <p className="text-sm italic text-slate-700">{reason}</p>
               </Section>
-              <Section title={t.skillsToBuild}>
-                <ul className="space-y-2 text-sm">
-                  {data.gaps?.map((g) => (
-                    <li key={g.skill}>
-                      <span className="font-medium">{g.skill}</span>
-                      <p className="text-slate-600">{g.howToStart}</p>
-                    </li>
+            )}
+
+            {!!data.skills?.length && (
+              <Section title={t.keySkills}>
+                <div className="flex flex-wrap gap-1.5">
+                  {data.skills.map((sk) => (
+                    <span key={sk} className="text-xs rounded-full px-2.5 py-1 border bg-slate-50 text-slate-700">
+                      {sk}
+                    </span>
                   ))}
-                </ul>
+                </div>
               </Section>
-            </div>
+            )}
 
             {!!data.nextSteps?.length && (
               <Section title={t.yourPath}>

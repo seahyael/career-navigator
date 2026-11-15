@@ -27,6 +27,44 @@ async function marketEvidence(ids: string[]) {
   return out;
 }
 
+// What fits each point in school, so a 1st-year and a grad student get very different roadmaps.
+const STAGE_GUIDE: Record<string, string> = {
+  freshman:
+    "1st-year undergrad. Lots of time. Focus on exploring: intro and gen-ed courses that test several careers, clubs, small " +
+    "side projects, talking to upperclassmen and professors. Major/minor decision comes later (around end of 2nd year). " +
+    "First internship target: summer after 2nd or 3rd year.",
+  sophomore:
+    "2nd-year undergrad. Narrow from exploring to choosing: decide major/minor this year, take the first core courses, build " +
+    "1-2 portfolio projects, apply to first internships or research assistant roles for next summer.",
+  junior:
+    "3rd-year undergrad. Internship year: apply in the fall for next summer, deepen core skills, build a portfolio, network with " +
+    "alumni. Specialization decision now. Job search starts at the beginning of next year.",
+  senior:
+    "4th-year undergrad, graduating soon. No exploring stages. Start applications right away (full-time roles, return offers, " +
+    "new-grad programs), polish resume and portfolio, network actively, prep interviews, and plan a backup (grad school, " +
+    "contract work, bridge job) for after graduation.",
+  grad:
+    "Graduate student (master's or PhD). Already specialized: skip undergrad steps. Focus on research, thesis or capstone, " +
+    "advisor and lab, publishing or presenting at conferences, specialized or research internships, academic vs industry " +
+    "decision, and professional networking in their niche.",
+  graduated:
+    "Already graduated. Skip all school steps (courses, majors, internships for students). Focus on landing or switching " +
+    "into a first role: portfolio or projects that prove skills, certifications, networking, applications and interviews, " +
+    "and early-career growth after they are hired.",
+  notInSchool:
+    "Not in school (working, career changer, or taking a break). Use calendar quarters. Focus on certifications, bootcamps or " +
+    "online courses, portfolio projects, transferable experience from current or past jobs, informational interviews, and a " +
+    "career-switch job search. Fit everything around a job.",
+};
+const TERM_MONTH: Record<string, number> = { winter: 3, spring: 5, summer: 8, fall: 12 };
+
+function monthsLeft(t: { gradTerm?: string; gradYear?: number | null }) {
+  if (!t?.gradYear) return null;
+  const now = new Date();
+  const m = TERM_MONTH[t.gradTerm ?? ""] ?? 5;
+  return Math.max(0, (t.gradYear - now.getFullYear()) * 12 + (m - (now.getMonth() + 1)));
+}
+
 const PROMPT = `You are a career coach. Build ONE comprehensive roadmap for a student who is still exploring.
 They are interested in SEVERAL careers (careers). Do not pick one for them. The roadmap should:
 - Start broad: early stages build on the student's STRENGTHS and preferences and keep several careers open
@@ -39,6 +77,10 @@ They are interested in SEVERAL careers (careers). Do not pick one for them. The 
   If they disliked a kind of task, offer a gentler alternative, but keep required ones.
 - Fit the work to timeline.hoursPerWeek and tie every stage to a real term on their calendar from today
   (e.g. "Spring 2027", "Summer 2027"); if not in school, use calendar quarters.
+- FOLLOW whereNow strictly. It says where the student is today and what fits this point in their life. The first stage
+  must start NOW (today's term) and match whereNow; never include steps they are already past (no "explore majors" for a senior,
+  no gen-ed courses for a grad student). Use monthsLeft to set the pace: fewer months = fewer, denser stages that reach
+  applications quickly; more months = room to explore first.
 Use onetData (official requirements) and marketEvidence (counts from real LinkedIn postings) to decide WHAT to build.
 Never use postings to judge fit.
 
@@ -91,6 +133,10 @@ export async function POST(req: Request) {
       careers: list.map((c) => ({ id: c.id, title: c.title, summary: c.summary, skills: c.skills, field: c.field })),
       today: new Date().toISOString().slice(0, 10),
       timeline,
+      whereNow:
+        STAGE_GUIDE[(timeline as { status?: string })?.status ?? ""] ??
+        "Unknown stage: assume an undergrad in the middle of their studies and ask about it in the first stage's goal.",
+      monthsLeft: monthsLeft(timeline as { gradTerm?: string; gradYear?: number | null }),
       userTraits: trimTraits(traits as { type: string }[]),
       majors,
       confirmedField: field,
