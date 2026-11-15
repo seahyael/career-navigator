@@ -162,6 +162,8 @@ export default function CareerDetail({
               </Section>
             )}
 
+            <MarketSection careerId={careerId} title={data.title} traits={traits} lang={lang} />
+
             {data.experiment && (
               <div className="rounded-xl bg-violet-50 border border-violet-200 p-4 text-sm">
                 <div className="font-semibold text-violet-800">{t.tryThis}</div>
@@ -208,6 +210,161 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
     <div>
       <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">{title}</h3>
       {children}
+    </div>
+  );
+}
+
+type Market = {
+  postingsCount?: number;
+  salary?: { min: number; max: number; n: number } | null;
+  samples?: { title?: string; company?: string; url?: string }[];
+  skills?: { name: string; count: number; have: boolean }[];
+  degrees?: { name: string; count: number }[];
+  certifications?: { name: string; count: number }[];
+  experience?: string;
+  focusNow?: string[];
+  error?: string;
+};
+
+function MarketSection({
+  careerId,
+  title,
+  traits,
+  lang,
+}: {
+  careerId: string;
+  title: string;
+  traits: Trait[];
+  lang: Lang;
+}) {
+  const t = T[lang];
+  const [state, setState] = useState<"idle" | "loading" | "done">("idle");
+  const [m, setM] = useState<Market>({});
+
+  async function scan() {
+    setState("loading");
+    try {
+      const res = await fetch("/api/market", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ careerId, title, traits, lang }),
+      });
+      setM(await res.json());
+    } catch (e) {
+      setM({ error: String(e) });
+    }
+    setState("done");
+  }
+
+  const max = Math.max(1, ...(m.skills ?? []).map((s) => s.count));
+
+  return (
+    <div className="rounded-xl border border-sky-200 bg-sky-50/40 p-4">
+      <h3 className="text-xs font-semibold uppercase tracking-wide text-sky-800">{t.marketTitle}</h3>
+      <p className="text-xs text-slate-500 mt-1">{t.marketDesc}</p>
+
+      {state === "idle" && (
+        <button onClick={scan} className="mt-3 text-sm rounded-xl px-4 py-2 bg-sky-700 text-white">
+          {t.marketButton}
+        </button>
+      )}
+      {state === "loading" && <p className="mt-3 text-sm text-slate-500 animate-pulse">{t.marketLoading}</p>}
+      {state === "done" && m.error && <p className="mt-3 text-sm text-red-600">{m.error}</p>}
+
+      {state === "done" && !m.error && (
+        <div className="mt-3 space-y-4">
+          <p className="text-xs text-slate-500">{t.marketFrom(m.postingsCount ?? 0)}</p>
+
+          {!!m.skills?.length && (
+            <div className="space-y-1.5">
+              {m.skills.map((s) => (
+                <div key={s.name}>
+                  <div className="flex justify-between text-xs">
+                    <span className={s.have ? "text-emerald-700 font-medium" : "text-slate-800"}>
+                      {s.have ? "✓ " : ""}
+                      {s.name}
+                    </span>
+                    <span className="text-slate-500">
+                      {s.count}/{m.postingsCount} · {s.have ? t.youHave : t.toBuild}
+                    </span>
+                  </div>
+                  <div className="h-1.5 bg-white rounded-full mt-0.5">
+                    <motion.div
+                      className={`h-1.5 rounded-full ${s.have ? "bg-emerald-500" : "bg-sky-500"}`}
+                      initial={{ width: 0 }}
+                      animate={{ width: `${(s.count / max) * 100}%` }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {!!m.focusNow?.length && (
+            <div>
+              <div className="text-xs font-semibold text-slate-700 mb-1">🎯 {t.focusNow}</div>
+              <div className="flex flex-wrap gap-1.5">
+                {m.focusNow.map((f) => (
+                  <span key={f} className="text-xs rounded-full px-2 py-1 bg-white border border-sky-200 text-sky-800">
+                    {f}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-3 text-xs">
+            {!!m.degrees?.length && (
+              <div>
+                <div className="font-semibold text-slate-700 mb-1">{t.degrees}</div>
+                {m.degrees.slice(0, 3).map((d) => (
+                  <div key={d.name} className="text-slate-600">
+                    {d.name} ({d.count})
+                  </div>
+                ))}
+              </div>
+            )}
+            {!!m.certifications?.length && (
+              <div>
+                <div className="font-semibold text-slate-700 mb-1">{t.certs}</div>
+                {m.certifications.slice(0, 3).map((d) => (
+                  <div key={d.name} className="text-slate-600">
+                    {d.name} ({d.count})
+                  </div>
+                ))}
+              </div>
+            )}
+            {m.salary && (
+              <div>
+                <div className="font-semibold text-slate-700 mb-1">{t.salary}</div>
+                <div className="text-slate-600">
+                  ${Math.round(m.salary.min / 1000)}k – ${Math.round(m.salary.max / 1000)}k
+                </div>
+              </div>
+            )}
+          </div>
+
+          {m.experience && <p className="text-xs text-slate-600">{m.experience}</p>}
+
+          {!!m.samples?.length && (
+            <div className="text-xs">
+              <div className="font-semibold text-slate-700 mb-1">{t.samplePostings}</div>
+              {m.samples.map((p, i) => (
+                <a
+                  key={i}
+                  href={p.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="block text-sky-700 hover:underline truncate"
+                >
+                  {p.title} · {p.company} ↗
+                </a>
+              ))}
+            </div>
+          )}
+          <p className="text-[10px] text-slate-400">Job data via Bright Data.</p>
+        </div>
+      )}
     </div>
   );
 }

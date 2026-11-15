@@ -1,0 +1,36 @@
+{
+  "Design": [
+    {
+      "id": "onet-27-1022.00",
+      "title": "Fashion Designers",
+      "onetCode": "27-1022.00",
+      "field": "Design",
+      "summary": "Fashion Designers (O*NET 27-1022.00)",
+      "skills": []
+    },
+    {
+      "id": "onet-15-1255.01",
+      "title": "Video Game Designers",
+      "onetCode": "15-1255.01",
+      "field": "Design",
+      "summary": "Video Game Designers (O*NET 15-1255.01)",
+      "skills": []
+    },
+    {
+      "id": "onet-27-1027.00",
+      "title": "Set & Exhibit Designers",
+      "onetCode": "27-1027.00",
+      "field": "Design",
+      "summary": "Set & Exhibit Designers (O*NET 27-1027.00)",
+      "skills": []
+    },
+    {
+      "id": "onet-27-1023.00",
+      "title": "Floral Designers",
+      "onetCode": "27-1023.00",
+      "field": "Design",
+      "summary": "Floral Designers (O*NET 27-1023.00)",
+      "skills": []
+    }
+  ]
+}

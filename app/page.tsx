@@ -5,6 +5,7 @@ import careersData from "@/data/careers.json";
 import subfieldsData from "@/data/subfields.json";
 import QuickTest from "./QuickTest";
 import CareerDetail from "./CareerDetail";
+import Roadmap, { EMPTY_PLAN, type Plan } from "./Roadmap";
 import { T, fieldName, type Lang } from "./i18n";
 
 type TraitType = "strength" | "interest" | "value" | "dislike";
@@ -54,7 +55,7 @@ function LangToggle({ lang, setLang }: { lang: Lang; setLang: (l: Lang) => void 
   );
 }
 
-function getCareer(id: string, field: string | null) {
+function getStaticCareer(id: string, field: string | null) {
   const list = field ? subfields[field] ?? [] : careers;
   return list.find((c) => c.id === id);
 }
@@ -76,6 +77,126 @@ export default function Home() {
   const [majors, setMajors] = useState<string[]>([]);
   const [beyond, setBeyond] = useState<Rank[]>([]);
   const [showCount, setShowCount] = useState(SHOW_COUNT);
+  const [board, setBoard] = useState<(Career & { titleKo?: string })[]>([]);
+  const [view, setView] = useState<"explore" | "roadmap">("explore");
+  const [pool, setPool] = useState<Career[]>([]);
+  const [plan, setPlan] = useState<Plan>(EMPTY_PLAN);
+  const userIdRef = useRef<string>("");
+  const [loaded, setLoaded] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "neon" | "local">("idle");
+
+  // Load the saved profile once: Neon first, then this browser as a fallback.
+  useEffect(() => {
+    let id = "";
+    try {
+      id = localStorage.getItem("userId") ?? "";
+      if (!id) {
+        id = crypto.randomUUID();
+        localStorage.setItem("userId", id);
+      }
+    } catch {
+      id = `anon-${Date.now()}`;
+    }
+    userIdRef.current = id;
+
+    (async () => {
+      let saved: Record<string, unknown> | null = null;
+      try {
+        const res = await fetch(`/api/profile?userId=${encodeURIComponent(id)}`);
+        const json = await res.json();
+        saved = json.data ?? null;
+      } catch {}
+      if (!saved) {
+        try {
+          saved = JSON.parse(localStorage.getItem("profile") ?? "null");
+        } catch {}
+      }
+      if (saved) {
+        const d = saved as Record<string, never>;
+        if (d.messages) setMessages(d.messages);
+        if (d.traits) setTraits(d.traits);
+        if (d.ranking) setRanking(d.ranking);
+        if (d.field !== undefined) setField(d.field);
+        if (d.hidden) setHidden(d.hidden);
+        if (d.liked) setLiked(d.liked);
+        if (d.majors) setMajors(d.majors);
+        if (d.beyond) setBeyond(d.beyond);
+        if (d.board) setBoard(d.board);
+        if (d.pool) setPool(d.pool);
+        if (d.plan) setPlan(d.plan);
+        if (d.showCount) setShowCount(d.showCount);
+        if (d.lang === "ko" || d.lang === "en") setLangState(d.lang);
+        if (d.stage === "chat") setStage("chat");
+      }
+      setLoaded(true);
+    })();
+  }, []);
+
+  // Save after every change (debounced): this browser always, Neon when configured.
+  useEffect(() => {
+    if (!loaded) return;
+    const snapshot = {
+      v: 1,
+      stage: stage === "test" ? "start" : stage,
+      lang,
+      messages,
+      traits,
+      ranking,
+      field,
+      hidden,
+      liked,
+      majors,
+      beyond,
+      board,
+      pool,
+      plan,
+      showCount,
+    };
+    setSaveStatus("saving");
+    const timer = setTimeout(async () => {
+      try {
+        localStorage.setItem("profile", JSON.stringify(snapshot));
+      } catch {}
+      try {
+        const res = await fetch("/api/profile", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userId: userIdRef.current, data: snapshot }),
+        });
+        const json = await res.json();
+        setSaveStatus(json.ok ? "neon" : "local");
+      } catch {
+        setSaveStatus("local");
+      }
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [loaded, stage, lang, messages, traits, ranking, field, hidden, liked, majors, beyond, board, pool, plan, showCount]);
+
+  async function startOver() {
+    if (!window.confirm(t.startOverConfirm)) return;
+    try {
+      localStorage.removeItem("profile");
+      await fetch(`/api/profile?userId=${encodeURIComponent(userIdRef.current)}`, { method: "DELETE" });
+    } catch {}
+    setMessages([]);
+    setTraits([]);
+    setRanking([]);
+    setField(null);
+    setHidden([]);
+    setLiked({});
+    setMajors([]);
+    setBeyond([]);
+    setBoard([]);
+    setPool([]);
+    setPlan(EMPTY_PLAN);
+    setShowCount(SHOW_COUNT);
+    setView("explore");
+    setStage("start");
+  }
+
+  // Inside a field the server may add extra O*NET careers; look there first.
+  const getCareer = (id: string, f: string | null) =>
+    (f ? pool.find((c) => c.id === id) : undefined) ?? getStaticCareer(id, f) ?? getStaticCareer(id, null);
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -98,8 +219,9 @@ export default function Home() {
 
   async function callChat(
     message: string,
-    opts: { show?: boolean; field?: string | null; traits?: Trait[]; majors?: string[] } = {}
+    opts: { show?: boolean; field?: string | null; traits?: Trait[]; majors?: string[]; hidden?: string[] } = {}
   ) {
+    const useHidden = opts.hidden ?? hidden;
     const useMajors = opts.majors ?? majors;
     const show = opts.show ?? true;
     const useField = opts.field !== undefined ? opts.field : field;
@@ -121,7 +243,7 @@ export default function Home() {
           feedback: {
             interested: Object.keys(liked).filter((k) => liked[k] === "interested"),
             maybe: Object.keys(liked).filter((k) => liked[k] === "maybe"),
-            notForMe: hidden,
+            notForMe: useHidden,
           },
         }),
       });
@@ -143,6 +265,7 @@ export default function Home() {
       );
       setTimeout(() => setRising([]), 2000);
       setRanking(newRank);
+      if (useField && data.pool?.length) setPool(data.pool);
       if (!useMajors.length) setBeyond([]);
       else if (data.beyond?.length) setBeyond(data.beyond);
 
@@ -167,6 +290,7 @@ export default function Home() {
 
   function confirmField(f: string) {
     setField(f);
+    setPool([]);
     setShowCount(SHOW_COUNT);
     const nextMajors = majors.includes(f) ? majors : [...majors, f];
     setMajors(nextMajors);
@@ -212,8 +336,50 @@ export default function Home() {
   const remaining = ranking.filter((r) => !hidden.includes(r.id) && getCareer(r.id, field));
   const visible = remaining.slice(0, showCount);
 
+  function markCareer(r: Rank, k: string, c: Career) {
+    setLiked({ ...liked, [r.id]: k });
+    if (k === "interested") {
+      if (!board.some((b) => b.id === r.id)) setBoard([...board, { ...c, titleKo: r.titleKo }]);
+    } else {
+      setBoard(board.filter((b) => b.id !== r.id));
+    }
+  }
+
+  function removeFromBoard(id: string) {
+    setBoard(board.filter((b) => b.id !== id));
+    const next = { ...liked };
+    delete next[id];
+    setLiked(next);
+  }
+
+  function onTaskFeedback(taskText: string, mood: "good" | "ok" | "bad") {
+    if (mood === "ok") return;
+    const trait: Trait = {
+      id: `task-${Date.now()}`,
+      label: (mood === "good" ? t.feltTrait.good : t.feltTrait.bad) + taskText,
+      type: mood === "good" ? "interest" : "dislike",
+      source: "Roadmap feedback",
+    };
+    const nextTraits = [...traits, trait];
+    setTraits(nextTraits);
+    callChat(`(user tried "${taskText}" and felt ${mood === "good" ? "great" : "bad"} about it)`, {
+      show: false,
+      traits: nextTraits,
+    });
+  }
+
   function hideCareer(id: string) {
-    setHidden([...hidden, id]);
+    const nextHidden = [...hidden, id];
+    setHidden(nextHidden);
+    // Inside a field there are few options: ask for more (the server pulls extra O*NET careers if needed).
+    if (field && remaining.length - 1 < showCount) {
+      const title = getCareer(id, field)?.title ?? id;
+      callChat(`(user marked "${title}" as not for me; suggest other paths in this field)`, {
+        show: false,
+        hidden: nextHidden,
+      });
+      return;
+    }
     // the next career in line slides into the freed spot: highlight it
     const newcomer = remaining.filter((r) => r.id !== id)[showCount - 1];
     if (newcomer) {
@@ -275,7 +441,15 @@ export default function Home() {
           <h1 className="text-xl font-semibold">Career Navigator</h1>
           <p className="text-sm text-slate-500">{t.chatTagline}</p>
         </div>
-        <LangToggle lang={lang} setLang={setLang} />
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-slate-400">
+            {saveStatus === "saving" ? t.saving : saveStatus === "neon" ? t.savedNeon : saveStatus === "local" ? t.savedLocal : ""}
+          </span>
+          <button onClick={startOver} className="text-xs text-slate-500 hover:text-slate-800 underline">
+            {t.startOver}
+          </button>
+          <LangToggle lang={lang} setLang={setLang} />
+        </div>
       </header>
 
       <div className="grid md:grid-cols-5 gap-4 p-4 max-w-7xl mx-auto">
@@ -392,6 +566,35 @@ export default function Home() {
             )}
           </div>
 
+          <div className="flex gap-1 bg-white border rounded-xl p-1 w-fit">
+            {(["explore", "roadmap"] as const).map((v) => (
+              <button
+                key={v}
+                onClick={() => setView(v)}
+                className={`text-sm rounded-lg px-4 py-1.5 ${view === v ? "bg-slate-900 text-white" : "text-slate-600"}`}
+              >
+                {v === "explore" ? t.tabExplore : t.tabRoadmap}
+                {v === "roadmap" && board.length > 0 && (
+                  <span className="ml-1.5 text-xs rounded-full bg-blue-500 text-white px-1.5">{board.length}</span>
+                )}
+              </button>
+            ))}
+          </div>
+
+          {view === "roadmap" ? (
+            <Roadmap
+              board={board}
+              traits={traits}
+              majors={majors}
+              lang={lang}
+              titleOf={(c) => (lang === "ko" && c.titleKo ? c.titleKo : c.title)}
+              onRemove={removeFromBoard}
+              onFeedback={onTaskFeedback}
+              plan={plan}
+              setPlan={setPlan}
+            />
+          ) : (
+          <>
           <div className="bg-white rounded-2xl border p-4">
             <div className="flex items-center justify-between mb-1">
               <h2 className="font-semibold">{field ? t.pathsInside(fieldName(field, lang)) : t.careersForYou}</h2>
@@ -478,7 +681,7 @@ export default function Home() {
                             ].map(([k, l]) => (
                               <button
                                 key={k}
-                                onClick={() => setLiked({ ...liked, [r.id]: k })}
+                                onClick={() => markCareer(r, k, c)}
                                 className={`text-xs border rounded-full px-3 py-1 ${
                                   liked[r.id] === k ? "bg-blue-600 text-white border-blue-600" : "text-slate-600"
                                 }`}
@@ -554,6 +757,8 @@ export default function Home() {
               </>
             )}
           </div>
+          </>
+          )}
         </section>
       </div>
 

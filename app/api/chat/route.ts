@@ -1,6 +1,6 @@
 import { GoogleGenAI } from "@google/genai";
 import careers from "../../../data/careers.json";
-import subfields from "../../../data/subfields.json";
+import { fieldPool, growPool, type Career } from "../../lib/pool";
 import { AI_LANG_RULE, type Lang } from "../../i18n";
 
 type Trait = { id: string; label: string; type: string; source: string };
@@ -96,9 +96,15 @@ export async function POST(req: Request) {
     } = await req.json();
     const rule = AI_LANG_RULE[(lang as Lang) in AI_LANG_RULE ? (lang as Lang) : "en"];
 
-    const candidates = (
-      confirmedField ? (subfields as Record<string, { id: string }[]>)[confirmedField] ?? [] : careers
-    ) as { id: string }[];
+    // Inside a confirmed field, keep at least 8 options that weren't marked "not for me".
+    let candidates: Career[] = confirmedField ? await fieldPool(confirmedField) : (careers as unknown as Career[]);
+    if (confirmedField) {
+      const rejected: string[] = (feedback as { notForMe?: string[] }).notForMe ?? [];
+      const left = candidates.filter((c) => !rejected.includes(c.id)).length;
+      if (left < 8 && (await growPool(confirmedField, 8 - left + 2)) > 0) {
+        candidates = await fieldPool(confirmedField);
+      }
+    }
 
     // Step 1: extract (if it fails, keep going with no new traits)
     let extracted: { newTraits?: Trait[]; reply?: string; followUp?: string | null } = {};
@@ -165,6 +171,7 @@ export async function POST(req: Request) {
       newTraits,
       ranking,
       beyond,
+      pool: confirmedField ? candidates : [],
       reply: extracted.reply ?? "",
       followUp: extracted.followUp ?? null,
     });

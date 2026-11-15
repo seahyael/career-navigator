@@ -1,9 +1,7 @@
 import { GoogleGenAI } from "@google/genai";
-import careers from "../../../data/careers.json";
-import subfields from "../../../data/subfields.json";
+import { findAnyCareer } from "../../lib/pool";
 import { AI_LANG_RULE, type Lang } from "../../i18n";
 
-type Career = { id: string; title: string; onetCode?: string; field?: string; summary: string; skills: string[] };
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
@@ -11,14 +9,6 @@ const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 // If the base URL ever differs, set ONET_BASE_URL in .env.local.
 const ONET_BASE = process.env.ONET_BASE_URL ?? "https://api-v2.onetcenter.org";
 
-function findCareer(id: string, field: string | null): Career | undefined {
-  const all = [
-    ...(careers as unknown as Career[]),
-    ...Object.values(subfields as unknown as Record<string, Career[]>).flat(),
-  ];
-  const inField = field ? (subfields as unknown as Record<string, Career[]>)[field] ?? [] : [];
-  return inField.find((c) => c.id === id) ?? all.find((c) => c.id === id);
-}
 
 async function fetchOnet(code: string) {
   const key = process.env.ONET_API_KEY;
@@ -66,7 +56,7 @@ export async function POST(req: Request) {
   try {
     const { careerId, field = null, traits = [], lang = "en" } = await req.json();
     const rule = AI_LANG_RULE[(lang as Lang) in AI_LANG_RULE ? (lang as Lang) : "en"];
-    const career = findCareer(careerId, field);
+    const career = await findAnyCareer(careerId, field);
     if (!career) return Response.json({ error: "Unknown career" }, { status: 404 });
 
     const onet = career.onetCode ? await fetchOnet(career.onetCode) : { ok: false as const, reason: "no O*NET code" };
