@@ -44,7 +44,7 @@ export async function discoverCareers(opts: {
   howMany?: number;
   focusField?: string | null;
 }): Promise<Career[]> {
-  if (!process.env.ONET_API_KEY || !opts.traits.length) return [];
+  if (!process.env.ONET_API_KEY || (!opts.traits.length && !opts.conversation.some((m) => m?.trim()))) return [];
   const howMany = opts.howMany ?? 10;
 
   let proposals: Proposal[] = [];
@@ -76,7 +76,7 @@ export async function discoverCareers(opts: {
       seen.add(code);
       const known = byCode.get(code);
       if (known) return known;
-      const res = await withTimeout<Awaited<ReturnType<typeof fetchOnet>>>(fetchOnet(code), 8000, { ok: false as const, reason: "timeout" });
+      const res = await withTimeout<Awaited<ReturnType<typeof fetchOnet>>>(fetchOnet(code), 4000, { ok: false as const, reason: "timeout" });
       if (!res.ok) return null; // not a real O*NET code (or O*NET unreachable): drop it
       const career: Career = {
         id: `onet-${code}`,

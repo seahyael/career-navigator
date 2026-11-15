@@ -58,7 +58,8 @@ Rules:
   including unusual mixes (e.g. Computer Science + baking -> food tech or bakery operations). For those careers the reason
   must say how the major helps. Never drop a career just because it is outside their majors: their other traits still count.
 - Careers marked interested get a small boost; notForMe should rank near the bottom; maybe is neutral.
-- Score every candidate 0-100. Use only candidate ids given. Never invent careers.
+- Return ONLY the 15 best-fitting candidates (fewer if there are fewer), best first, each scored 0-100.
+  Use only candidate ids given. Never invent careers.
 - Keep each reason under 18 words. Output valid JSON with no trailing commas.
 - reason: one short sentence that combines at least TWO of the user's traits, ideally from different messages,
   e.g. "Pretty slides + helping friends with app ideas -> designs tools people enjoy using."
@@ -103,6 +104,26 @@ export async function POST(req: Request) {
       ? [...(await fieldPool(confirmedField)), ...dynamicPool.filter((c) => c.field === confirmedField)]
       : [...(careers as unknown as Career[]), ...dynamicPool];
     let candidates: Career[] = dedupe(base);
+
+    // Step 1b starts right away, in parallel with step 1: search the whole O*NET list.
+    // It reads the new message itself, so it does not need to wait for trait extraction.
+    // Every proposed code is verified against O*NET. Skipped for internal notes unless the list is running short.
+    const left = candidates.filter((c) => !rejected.includes(c.id)).length;
+    const shortList = confirmedField ? left < 10 : dynamicPool.length < 12;
+    const internal = typeof message === "string" && message.trim().startsWith("(");
+    const discoverPromise: Promise<Career[]> =
+      !internal || shortList
+        ? discoverCareers({
+            traits: traits as Trait[],
+            conversation: [...(history as string[]), message],
+            exclude: [...candidates.map((c) => c.title), ...rejected],
+            howMany: confirmedField ? 8 : 10,
+            focusField: confirmedField,
+          }).catch((e) => {
+            console.error("discover step failed:", e);
+            return [] as Career[];
+          })
+        : Promise.resolve([] as Career[]);
 
     // Step 1: extract (if it fails, keep going with no new traits)
     let extracted: {
@@ -149,26 +170,12 @@ export async function POST(req: Request) {
     });
     const allTraits = [...upgraded, ...newTraits];
 
-    // Step 1b: search the whole O*NET list with the full profile. Runs when something new was learned
-    // or when the list is running short; every proposed code is verified against O*NET.
-    const left = candidates.filter((c) => !rejected.includes(c.id)).length;
-    const shortList = confirmedField ? left < 10 : dynamicPool.length < 12;
-    if (allTraits.length && (newTraits.length || upgrades.length || shortList)) {
-      try {
-        const found = await discoverCareers({
-          traits: allTraits,
-          conversation: [...(history as string[]), message],
-          exclude: [...candidates.map((c) => c.title), ...rejected],
-          howMany: confirmedField ? 8 : 10,
-          focusField: confirmedField,
-        });
-        const knownCodes = new Set(candidates.map((c) => c.onetCode).filter(Boolean));
-        const added = found.filter((c) => !c.onetCode || !knownCodes.has(c.onetCode));
-        dynamicPool = dedupe([...dynamicPool, ...added]);
-        candidates = dedupe([...candidates, ...added]);
-      } catch (e) {
-        console.error("discover step failed:", e);
-      }
+    {
+      const found = await discoverPromise;
+      const knownCodes = new Set(candidates.map((c) => c.onetCode).filter(Boolean));
+      const added = found.filter((c) => !c.onetCode || !knownCodes.has(c.onetCode));
+      dynamicPool = dedupe([...dynamicPool, ...added]);
+      candidates = dedupe([...candidates, ...added]);
     }
     // Outside a field, rank only careers found for THIS user. The 30 starter careers are only a fallback
     // for when the O*NET search found nothing (e.g. the AI or O*NET was down).
@@ -236,7 +243,9 @@ export async function POST(req: Request) {
     const rankedIds = new Set(ranking.map((r) => r.id));
     const floor = ranking.length ? Math.min(...ranking.map((r) => r.score)) : 50;
     for (const c of candidates) {
-      if (!rankedIds.has(c.id)) ranking.push({ id: c.id, score: prev.get(c.id) ?? Math.max(1, floor - 5), reason: "" });
+      // Not in the AI's top 15 this turn: keep it below the ranked ones so the list can still refill.
+      if (!rankedIds.has(c.id))
+        ranking.push({ id: c.id, score: Math.max(1, Math.min(prev.get(c.id) ?? floor - 5, floor - 1)), reason: "" });
     }
     ranking.sort((a, b) => b.score - a.score);
 
