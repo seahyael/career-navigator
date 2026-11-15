@@ -30,6 +30,7 @@ export default function CareerDetail({
   traits,
   lang,
   fallback = null,
+  inBoard = false,
   onClose,
 }: {
   careerId: string;
@@ -37,6 +38,7 @@ export default function CareerDetail({
   traits: Trait[];
   lang: Lang;
   fallback?: { id: string; title: string; summary: string; skills: string[]; onetCode?: string } | null;
+  inBoard?: boolean;
   onClose: () => void;
 }) {
   const [data, setData] = useState<Detail | null>(null);
@@ -164,7 +166,7 @@ export default function CareerDetail({
               </Section>
             )}
 
-            <MarketSection careerId={careerId} title={data.title} traits={traits} lang={lang} />
+            <MarketSection careerId={careerId} title={data.title} traits={traits} lang={lang} inBoard={inBoard} />
 
             {data.experiment && (
               <div className="rounded-xl bg-violet-50 border border-violet-200 p-4 text-sm">
@@ -233,30 +235,52 @@ function MarketSection({
   title,
   traits,
   lang,
+  inBoard,
 }: {
   careerId: string;
   title: string;
   traits: Trait[];
   lang: Lang;
+  inBoard: boolean;
 }) {
   const t = T[lang];
-  const [state, setState] = useState<"idle" | "loading" | "done">("idle");
+  const [state, setState] = useState<"idle" | "loading" | "pending" | "done">("loading");
   const [m, setM] = useState<Market>({});
 
-  async function scan() {
-    setState("loading");
-    try {
-      const res = await fetch("/api/market", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ careerId, title, traits, lang }),
-      });
-      setM(await res.json());
-    } catch (e) {
-      setM({ error: String(e) });
+  // Read the saved LinkedIn analysis. Careers on the roadmap are scanned in the background,
+  // so while that runs, check again every 15 seconds (up to ~2 minutes).
+  useEffect(() => {
+    let stop = false;
+    let tries = 0;
+    async function check() {
+      try {
+        const res = await fetch("/api/market", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ careerId, title, traits, lang, cachedOnly: true }),
+        });
+        const data = await res.json();
+        if (stop) return;
+        if (data.pending) {
+          setState("pending");
+          if (inBoard && tries++ < 8) setTimeout(check, 15000);
+          return;
+        }
+        setM(data);
+        setState("done");
+      } catch (e) {
+        if (!stop) {
+          setM({ error: String(e) });
+          setState("done");
+        }
+      }
     }
-    setState("done");
-  }
+    check();
+    return () => {
+      stop = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [careerId, inBoard, lang]);
 
   const max = Math.max(1, ...(m.skills ?? []).map((s) => s.count));
 
@@ -265,12 +289,12 @@ function MarketSection({
       <h3 className="text-xs font-semibold uppercase tracking-wide text-sky-800">{t.marketTitle}</h3>
       <p className="text-xs text-slate-500 mt-1">{t.marketDesc}</p>
 
-      {state === "idle" && (
-        <button onClick={scan} className="mt-3 text-sm rounded-xl px-4 py-2 bg-sky-700 text-white">
-          {t.marketButton}
-        </button>
+      {state === "loading" && <p className="mt-3 text-sm text-slate-500 animate-pulse">{t.marketChecking}</p>}
+      {state === "pending" && (
+        <p className={`mt-3 text-sm text-slate-500 ${inBoard ? "animate-pulse" : ""}`}>
+          {inBoard ? t.marketLoading : t.marketAddHint}
+        </p>
       )}
-      {state === "loading" && <p className="mt-3 text-sm text-slate-500 animate-pulse">{t.marketLoading}</p>}
       {state === "done" && m.error && <p className="mt-3 text-sm text-red-600">{m.error}</p>}
 
       {state === "done" && !m.error && (

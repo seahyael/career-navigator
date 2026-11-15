@@ -92,6 +92,10 @@ export default function Home() {
   const [stage, setStage] = useState<"start" | "test" | "chat">("start");
   const [openCareer, setOpenCareer] = useState<string | null>(null);
   const [majorInput, setMajorInput] = useState("");
+  // LinkedIn analysis runs automatically, one career at a time, for every career on the roadmap.
+  const marketDone = useRef<Set<string>>(new Set());
+  const marketBusy = useRef(false);
+  const [marketTick, setMarketTick] = useState(0);
   const [majors, setMajors] = useState<string[]>([]);
   const [beyond, setBeyond] = useState<Rank[]>([]);
   const [showCount, setShowCount] = useState(SHOW_COUNT);
@@ -297,6 +301,25 @@ export default function Home() {
     resetState();
     setLoaded(true);
   }
+
+  useEffect(() => {
+    if (!loaded || marketBusy.current) return;
+    const next = board.find((b) => !marketDone.current.has(b.id));
+    if (!next) return;
+    marketBusy.current = true;
+    marketDone.current.add(next.id);
+    fetch("/api/market", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ careerId: next.id, title: next.title, traits, lang }),
+    })
+      .catch((e) => console.warn("LinkedIn scan failed:", e))
+      .finally(() => {
+        marketBusy.current = false;
+        setMarketTick((n) => n + 1); // move on to the next career
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loaded, board, marketTick]);
 
   async function startOver() {
     if (!window.confirm(t.startOverConfirm)) return;
@@ -1014,57 +1037,6 @@ export default function Home() {
               </button>
             )}
           </div>
-          <div className="bg-white rounded-2xl border p-4">
-            <h2 className="font-semibold">{t.beyondTitle}</h2>
-            {majors.length === 0 ? (
-              <p className="text-sm text-slate-400 mt-2">{t.beyondHint}</p>
-            ) : (
-              <>
-                <p className="text-xs text-slate-500 mt-1 mb-3">{t.beyondDesc(majors.map((m) => fieldName(m, lang)).join(lang === "ko" ? ", " : " & "))}</p>
-                {beyond.length === 0 && (
-                  <p className="text-sm text-slate-400">{loading ? t.ranking : t.beyondEmpty}</p>
-                )}
-                <div className="grid sm:grid-cols-3 gap-3">
-                  {beyond.map((r) => {
-                    const c = getCareer(r.id, null);
-                    if (!c) return null;
-                    return (
-                      <motion.div
-                        key={r.id}
-                        initial={{ opacity: 0, y: 8 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="rounded-xl border border-violet-200 bg-violet-50/50 p-3 flex flex-col"
-                      >
-                        <div className="text-xs text-violet-700">{c.field ? fieldName(c.field, lang) : ""}</div>
-                        <h3 className="font-semibold text-sm mt-1">
-                          {lang === "ko" && r.titleKo ? r.titleKo : c.title}
-                        </h3>
-                        <p className="text-xs italic text-slate-700 mt-2 flex-1">{r.reason}</p>
-                        <div className="mt-3 flex flex-wrap gap-1.5">
-                          {board.some((b) => b.id === r.id) ? (
-                            <span className="text-xs text-blue-700">✓ {t.tabRoadmap}</span>
-                          ) : (
-                            <button
-                              onClick={() => markCareer(r, "interested", c)}
-                              className="text-xs rounded-full px-3 py-1 bg-blue-600 text-white"
-                            >
-                              {t.addToRoadmap}
-                            </button>
-                          )}
-                          <button
-                            onClick={() => setOpenCareer(r.id)}
-                            className="text-xs rounded-full px-3 py-1 bg-slate-900 text-white"
-                          >
-                            {t.explore}
-                          </button>
-                        </div>
-                      </motion.div>
-                    );
-                  })}
-                </div>
-              </>
-            )}
-          </div>
           </>
           )}
         </section>
@@ -1243,6 +1215,7 @@ export default function Home() {
           traits={traits}
           lang={lang}
           fallback={detailFallback ?? ((getCareer(openCareer, field) as BoardCareer | undefined) ?? null)}
+          inBoard={board.some((b) => b.id === openCareer)}
           onClose={() => {
             setOpenCareer(null);
             setDetailFallback(null);

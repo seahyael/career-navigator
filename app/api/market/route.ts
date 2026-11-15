@@ -69,18 +69,21 @@ skills: top 8 by count.`;
 
 export async function POST(req: Request) {
   try {
-    const { careerId, title, traits = [], lang = "en", refresh = false } = await req.json();
+    const { careerId, title, traits = [], lang = "en", refresh = false, cachedOnly = false } = await req.json();
     if (!careerId || !title) return Response.json({ error: "careerId and title are required" }, { status: 400 });
     const rule = AI_LANG_RULE[(lang as Lang) in AI_LANG_RULE ? (lang as Lang) : "en"];
 
     let entry = await getMarket(careerId);
     const stale = entry && Date.now() - new Date(entry.fetchedAt).getTime() > STALE_DAYS * 864e5;
-    if (!entry || refresh || stale) {
+    // Opening a career only reads the cache; scraping runs when a career is added to the roadmap.
+    if (!entry && cachedOnly) return Response.json({ pending: true });
+    if (!cachedOnly && (!entry || refresh || stale)) {
       const postings = await fetchPostings(title);
       entry = { fetchedAt: new Date().toISOString(), postings, analysis: null };
       await setMarket(careerId, entry);
     }
 
+    if (!entry) return Response.json({ pending: true });
     const postings = (entry.postings as Posting[]).filter((p) => p && (p.job_title || p.job_summary));
     if (!postings.length) return Response.json({ error: "No postings found for this career right now." }, { status: 404 });
 

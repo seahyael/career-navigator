@@ -43,6 +43,9 @@ Rules:
 - Treat every trait with equal weight no matter when it was said. The most recent message is NOT more important.
 - A career should score high only if it fits SEVERAL traits together. One matching trait alone = at most 60.
 - Traits of type "dislike" lower the score of careers that require them.
+- majors: the student's majors (may be empty). Careers where their major is a real asset get a moderate boost (+10 to +15),
+  including unusual mixes (e.g. Computer Science + baking -> food tech or bakery operations). For those careers the reason
+  must say how the major helps. Never drop a career just because it is outside their majors: their other traits still count.
 - Careers marked interested get a small boost; notForMe should rank near the bottom; maybe is neutral.
 - Score every candidate 0-100. Use only candidate ids given. Never invent careers.
 - Keep each reason under 18 words. Output valid JSON with no trailing commas.
@@ -161,15 +164,12 @@ export async function POST(req: Request) {
 
     // Step 2 (rank) and 2b (beyond the major) run in parallel
     const majorList: string[] = Array.isArray(majors) ? majors : [];
-    const lowerMajors = majorList.map((m) => m.toLowerCase());
-    const outside = majorList.length
-      ? (dynamicPool.length ? dynamicPool : (careers as unknown as Career[])).filter(
-          (c) => !lowerMajors.includes((c.field ?? "").toLowerCase())
-        )
-      : [];
+    // The "beyond your major" panel is hidden for now, so skip that call.
+    const outside: Career[] = [];
     const [rankResult, beyondResult] = await Promise.allSettled([
       askJSON(`${RANK_PROMPT}\n\nLANGUAGE: ${rule}`, {
         allTraits: trimTraits(allTraits),
+        majors: majorList,
         conversation: [...history, message],
         feedback,
         candidates: candidates.map((c) => ({ id: c.id, title: c.title, field: c.field, summary: c.summary, skills: c.skills })),
