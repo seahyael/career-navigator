@@ -32,5 +32,55 @@
       "summary": "Floral Designers (O*NET 27-1023.00)",
       "skills": []
     }
+  ],
+  "Computer Science": [
+    {
+      "id": "onet-15-1253.00",
+      "title": "Software Quality Assurance Analysts & Testers",
+      "onetCode": "15-1253.00",
+      "field": "Computer Science",
+      "summary": "Software Quality Assurance Analysts & Testers (O*NET 15-1253.00)",
+      "skills": []
+    },
+    {
+      "id": "onet-15-1232.00",
+      "title": "Computer User Support Specialists",
+      "onetCode": "15-1232.00",
+      "field": "Computer Science",
+      "summary": "Computer User Support Specialists (O*NET 15-1232.00)",
+      "skills": []
+    },
+    {
+      "id": "onet-15-1244.00",
+      "title": "Network & Computer Systems Administrators",
+      "onetCode": "15-1244.00",
+      "field": "Computer Science",
+      "summary": "Network & Computer Systems Administrators (O*NET 15-1244.00)",
+      "skills": []
+    },
+    {
+      "id": "onet-15-1251.00",
+      "title": "Computer Programmers",
+      "onetCode": "15-1251.00",
+      "field": "Computer Science",
+      "summary": "Computer Programmers (O*NET 15-1251.00)",
+      "skills": []
+    },
+    {
+      "id": "onet-15-1211.00",
+      "title": "Computer Systems Analysts",
+      "onetCode": "15-1211.00",
+      "field": "Computer Science",
+      "summary": "Computer Systems Analysts (O*NET 15-1211.00)",
+      "skills": []
+    },
+    {
+      "id": "onet-15-1221.00",
+      "title": "Computer & Information Research Scientists",
+      "onetCode": "15-1221.00",
+      "field": "Computer Science",
+      "summary": "Computer & Information Research Scientists (O*NET 15-1221.00)",
+      "skills": []
+    }
   ]
 }

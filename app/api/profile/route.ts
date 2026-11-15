@@ -1,4 +1,11 @@
 import { getSql } from "../../lib/db";
+import { currentUser } from "../../lib/auth";
+
+// Logged-in users are stored under their account; guests under their browser id.
+async function identity(guestId: string | null) {
+  const user = await currentUser();
+  return user ? `user:${user.id}` : guestId;
+}
 
 // One row per user: the whole app state as JSON. Simple and enough for a hackathon.
 let ready: Promise<unknown> | null = null;
@@ -16,7 +23,7 @@ function db() {
 }
 
 export async function GET(req: Request) {
-  const userId = new URL(req.url).searchParams.get("userId");
+  const userId = await identity(new URL(req.url).searchParams.get("userId"));
   if (!userId) return Response.json({ error: "userId required" }, { status: 400 });
   const sql = db();
   if (!sql) return Response.json({ data: null, storage: "none" });
@@ -32,7 +39,9 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    const { userId, data } = await req.json();
+    const body = await req.json();
+    const userId = await identity(body.userId ?? null);
+    const data = body.data;
     if (!userId || !data) return Response.json({ error: "userId and data required" }, { status: 400 });
     const sql = db();
     if (!sql) return Response.json({ ok: false, storage: "none" });
@@ -49,7 +58,7 @@ export async function POST(req: Request) {
 }
 
 export async function DELETE(req: Request) {
-  const userId = new URL(req.url).searchParams.get("userId");
+  const userId = await identity(new URL(req.url).searchParams.get("userId"));
   const sql = userId ? db() : null;
   if (!userId || !sql) return Response.json({ ok: false });
   try {

@@ -5,7 +5,15 @@ import careersData from "@/data/careers.json";
 import subfieldsData from "@/data/subfields.json";
 import QuickTest from "./QuickTest";
 import CareerDetail from "./CareerDetail";
-import Roadmap, { EMPTY_PLAN, type Plan } from "./Roadmap";
+import Roadmap, {
+  EMPTY_PLAN,
+  EMPTY_TIMELINE,
+  type Plan,
+  type Timeline,
+  type Career as BoardCareer,
+  type Decision,
+  type DecisionOption,
+} from "./Roadmap";
 import { T, fieldName, type Lang } from "./i18n";
 
 type TraitType = "strength" | "interest" | "value" | "dislike";
@@ -25,6 +33,7 @@ const TYPE_STYLE: Record<TraitType, string> = {
 };
 
 const SHOW_COUNT = 8;
+const BOARD_MAX = 10;
 
 const FIELDS = Array.from(new Set(careers.map((c) => c.field).filter(Boolean))) as string[];
 
@@ -81,11 +90,90 @@ export default function Home() {
   const [view, setView] = useState<"explore" | "roadmap">("explore");
   const [pool, setPool] = useState<Career[]>([]);
   const [plan, setPlan] = useState<Plan>(EMPTY_PLAN);
+  const [timeline, setTimeline] = useState<Timeline>(EMPTY_TIMELINE);
+  const [detailFallback, setDetailFallback] = useState<BoardCareer | null>(null);
+  const [hiddenFields, setHiddenFields] = useState<string[]>([]);
+  // "why?" question after adding / dismissing a career
+  const [reasonAsk, setReasonAsk] = useState<{
+    title: string;
+    kind: "like" | "dislike" | "activity";
+    mood?: "good" | "ok" | "bad";
+    text: string;
+  } | null>(null);
+  // roadmap is full: which career is waiting to be added
+  const [pendingAdd, setPendingAdd] = useState<{ r: Rank; c: Career } | null>(null);
+  const [toast, setToast] = useState<{ text: string; action?: boolean } | null>(null);
+  const [aboutOpen, setAboutOpen] = useState(false);
+
+  function showToast(text: string, action = false) {
+    setToast({ text, action });
+    setTimeout(() => setToast(null), 3500);
+  }
   const userIdRef = useRef<string>("");
   const [loaded, setLoaded] = useState(false);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "neon" | "local">("idle");
 
-  // Load the saved profile once: Neon first, then this browser as a fallback.
+  const [user, setUser] = useState<{ id: string; username: string } | null>(null);
+  const [authOpen, setAuthOpen] = useState(false);
+  const [authMode, setAuthMode] = useState<"login" | "signup">("login");
+  const [authForm, setAuthForm] = useState({ username: "", password: "" });
+  const [authError, setAuthError] = useState("");
+  const [authBusy, setAuthBusy] = useState(false);
+  const localKey = () => `profile:${user ? `user:${user.id}` : userIdRef.current}`;
+
+  function applySnapshot(d: Record<string, never>) {
+    if (d.messages) setMessages(d.messages);
+    if (d.traits) setTraits(d.traits);
+    if (d.ranking) setRanking(d.ranking);
+    if (d.field !== undefined) setField(d.field);
+    if (d.hidden) setHidden(d.hidden);
+    if (d.liked) setLiked(d.liked);
+    if (d.majors) setMajors(d.majors);
+    if (d.beyond) setBeyond(d.beyond);
+    if (d.board) setBoard(d.board);
+    if (d.pool) setPool(d.pool);
+    // older saves used a different roadmap shape; only restore the current one
+    if (d.plan && Array.isArray((d.plan as Plan).decisions)) setPlan(d.plan);
+    if (d.timeline) setTimeline(d.timeline);
+    if (d.hiddenFields) setHiddenFields(d.hiddenFields);
+    if (d.showCount) setShowCount(d.showCount);
+    if (d.lang === "ko" || d.lang === "en") setLangState(d.lang);
+    if (d.stage === "chat") setStage("chat");
+  }
+
+  function resetState() {
+    setMessages([]);
+    setTraits([]);
+    setRanking([]);
+    setField(null);
+    setHidden([]);
+    setLiked({});
+    setMajors([]);
+    setBeyond([]);
+    setBoard([]);
+    setPool([]);
+    setPlan(EMPTY_PLAN);
+    setTimeline(EMPTY_TIMELINE);
+    setHiddenFields([]);
+    setShowCount(SHOW_COUNT);
+    setView("explore");
+    setStage("start");
+  }
+
+  async function fetchProfile(key: string): Promise<Record<string, never> | null> {
+    try {
+      const res = await fetch(`/api/profile?userId=${encodeURIComponent(userIdRef.current)}`);
+      const json = await res.json();
+      if (json.data) return json.data;
+    } catch {}
+    try {
+      return JSON.parse(localStorage.getItem(key) ?? "null");
+    } catch {
+      return null;
+    }
+  }
+
+  // On open: find the guest id, check if someone is logged in, then load their profile.
   useEffect(() => {
     let id = "";
     try {
@@ -100,36 +188,16 @@ export default function Home() {
     userIdRef.current = id;
 
     (async () => {
-      let saved: Record<string, unknown> | null = null;
+      let me: { id: string; username: string } | null = null;
       try {
-        const res = await fetch(`/api/profile?userId=${encodeURIComponent(id)}`);
-        const json = await res.json();
-        saved = json.data ?? null;
+        me = (await (await fetch("/api/auth")).json()).user ?? null;
       } catch {}
-      if (!saved) {
-        try {
-          saved = JSON.parse(localStorage.getItem("profile") ?? "null");
-        } catch {}
-      }
-      if (saved) {
-        const d = saved as Record<string, never>;
-        if (d.messages) setMessages(d.messages);
-        if (d.traits) setTraits(d.traits);
-        if (d.ranking) setRanking(d.ranking);
-        if (d.field !== undefined) setField(d.field);
-        if (d.hidden) setHidden(d.hidden);
-        if (d.liked) setLiked(d.liked);
-        if (d.majors) setMajors(d.majors);
-        if (d.beyond) setBeyond(d.beyond);
-        if (d.board) setBoard(d.board);
-        if (d.pool) setPool(d.pool);
-        if (d.plan) setPlan(d.plan);
-        if (d.showCount) setShowCount(d.showCount);
-        if (d.lang === "ko" || d.lang === "en") setLangState(d.lang);
-        if (d.stage === "chat") setStage("chat");
-      }
+      setUser(me);
+      const saved = await fetchProfile(`profile:${me ? `user:${me.id}` : id}`);
+      if (saved) applySnapshot(saved);
       setLoaded(true);
     })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Save after every change (debounced): this browser always, Neon when configured.
@@ -150,12 +218,15 @@ export default function Home() {
       board,
       pool,
       plan,
+      timeline,
+      hiddenFields,
       showCount,
     };
+    const key = localKey();
     setSaveStatus("saving");
     const timer = setTimeout(async () => {
       try {
-        localStorage.setItem("profile", JSON.stringify(snapshot));
+        localStorage.setItem(key, JSON.stringify(snapshot));
       } catch {}
       try {
         const res = await fetch("/api/profile", {
@@ -170,29 +241,67 @@ export default function Home() {
       }
     }, 800);
     return () => clearTimeout(timer);
-  }, [loaded, stage, lang, messages, traits, ranking, field, hidden, liked, majors, beyond, board, pool, plan, showCount]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loaded, user, stage, lang, messages, traits, ranking, field, hidden, liked, majors, beyond, board, pool, plan, timeline, hiddenFields, showCount]);
+
+  async function submitAuth() {
+    setAuthBusy(true);
+    setAuthError("");
+    try {
+      const res = await fetch("/api/auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: authMode, ...authForm }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.user) {
+        setAuthError(t.authErrors[json.error] ?? t.authErrors.server);
+        return;
+      }
+      setLoaded(false); // pause saving while we switch accounts
+      setUser(json.user);
+      if (!json.isNew) {
+        // Existing account: load its saved progress (if any) instead of the guest's.
+        const saved = await fetchProfile(`profile:user:${json.user.id}`);
+        if (saved) {
+          resetState();
+          applySnapshot(saved);
+        }
+      }
+      // New account: keep the current progress; the save effect stores it under the account.
+      setLoaded(true);
+      setAuthOpen(false);
+      setAuthForm({ username: "", password: "" });
+    } catch {
+      setAuthError(t.authErrors.server);
+    } finally {
+      setAuthBusy(false);
+    }
+  }
+
+  async function logout() {
+    setLoaded(false);
+    try {
+      await fetch("/api/auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "logout" }),
+      });
+    } catch {}
+    setUser(null);
+    resetState();
+    setLoaded(true);
+  }
 
   async function startOver() {
     if (!window.confirm(t.startOverConfirm)) return;
     try {
-      localStorage.removeItem("profile");
+      localStorage.removeItem(localKey());
       await fetch(`/api/profile?userId=${encodeURIComponent(userIdRef.current)}`, { method: "DELETE" });
     } catch {}
-    setMessages([]);
-    setTraits([]);
-    setRanking([]);
-    setField(null);
-    setHidden([]);
-    setLiked({});
-    setMajors([]);
-    setBeyond([]);
-    setBoard([]);
-    setPool([]);
-    setPlan(EMPTY_PLAN);
-    setShowCount(SHOW_COUNT);
-    setView("explore");
-    setStage("start");
+    resetState();
   }
+
 
   // Inside a field the server may add extra O*NET careers; look there first.
   const getCareer = (id: string, f: string | null) =>
@@ -219,7 +328,15 @@ export default function Home() {
 
   async function callChat(
     message: string,
-    opts: { show?: boolean; field?: string | null; traits?: Trait[]; majors?: string[]; hidden?: string[] } = {}
+    opts: {
+      show?: boolean;
+      field?: string | null;
+      traits?: Trait[];
+      majors?: string[];
+      hidden?: string[];
+      context?: string;
+      hiddenFields?: string[];
+    } = {}
   ) {
     const useHidden = opts.hidden ?? hidden;
     const useMajors = opts.majors ?? majors;
@@ -238,12 +355,14 @@ export default function Home() {
           confirmedField: useField,
           lang,
           majors: useMajors,
+          context: opts.context ?? null,
           history: messages.filter((m) => m.role === "user").map((m) => m.text).slice(-15),
           prevRanking: useField === field ? ranking : [],
           feedback: {
             interested: Object.keys(liked).filter((k) => liked[k] === "interested"),
             maybe: Object.keys(liked).filter((k) => liked[k] === "maybe"),
             notForMe: useHidden,
+            notForMeFields: opts.hiddenFields ?? hiddenFields,
           },
         }),
       });
@@ -254,7 +373,19 @@ export default function Home() {
       const fresh: Trait[] = (data.newTraits ?? [])
         .filter((t: Trait) => !known.has(t.label.toLowerCase()))
         .map((t: Trait, i: number) => ({ ...t, id: `${t.id}-${Date.now()}-${i}` }));
-      setTraits([...useTraits, ...fresh]);
+      // Interests the coach confirmed as strengths move over.
+      const upgrades: { label: string; newLabel?: string | null }[] = data.upgrades ?? [];
+      const promoted: string[] = [];
+      const updated = useTraits.map((tr) => {
+        const u = upgrades.find((x) => x.label?.toLowerCase() === tr.label.toLowerCase());
+        if (u && tr.type === "interest") {
+          promoted.push(u.newLabel || tr.label);
+          return { ...tr, type: "strength" as TraitType, label: u.newLabel || tr.label, source: `${tr.source} ✓` };
+        }
+        return tr;
+      });
+      setTraits([...updated, ...fresh]);
+      if (promoted.length) showToast(t.promoted(promoted.join(", ")));
 
       const oldPos = new Map(ranking.map((r, i) => [r.id, i]));
       const newRank: Rank[] = [...(data.ranking ?? [])].sort((a, b) => b.score - a.score);
@@ -274,7 +405,7 @@ export default function Home() {
       if (data.followUp) replies.push({ role: "coach", text: data.followUp });
       setMessages((m) => [...m, ...replies]);
     } catch (e) {
-      console.error(e);
+      console.warn("chat failed:", e);
       setMessages((m) => [...m, { role: "coach", text: t.lost }]);
     } finally {
       setLoading(false);
@@ -285,18 +416,17 @@ export default function Home() {
     const text = input.trim();
     if (!text || loading) return;
     setInput("");
-    callChat(text);
+    if (reasonAsk) sendReason(text);
+    else callChat(text);
   }
 
   function confirmField(f: string) {
     setField(f);
     setPool([]);
     setShowCount(SHOW_COUNT);
-    const nextMajors = majors.includes(f) ? majors : [...majors, f];
-    setMajors(nextMajors);
     setHidden([]);
     setRanking([]);
-    callChat(`(user confirmed the field: ${f})`, { show: false, field: f, majors: nextMajors });
+    callChat(`(user wants to see more careers in the field: ${f})`, { show: false, field: f });
   }
 
   function toggleMajor(m: string) {
@@ -333,39 +463,143 @@ export default function Home() {
     });
   }
 
-  const remaining = ranking.filter((r) => !hidden.includes(r.id) && getCareer(r.id, field));
+  // Careers marked "Interested" move to the roadmap, so they leave the explore list.
+  const remaining = ranking.filter(
+    (r) =>
+      !hidden.includes(r.id) &&
+      liked[r.id] !== "interested" &&
+      !!getCareer(r.id, field) &&
+      (field !== null || !hiddenFields.includes(getCareer(r.id, null)?.field ?? ""))
+  );
   const visible = remaining.slice(0, showCount);
 
   function markCareer(r: Rank, k: string, c: Career) {
     setLiked({ ...liked, [r.id]: k });
     if (k === "interested") {
-      if (!board.some((b) => b.id === r.id)) setBoard([...board, { ...c, titleKo: r.titleKo }]);
+      if (!board.some((b) => b.id === r.id)) {
+        if (board.length >= BOARD_MAX) {
+          setLiked(liked); // not added yet
+          setPendingAdd({ r, c });
+          return;
+        }
+        setBoard([...board, { ...c, titleKo: r.titleKo }]);
+        if (plan.path) setPlan({ ...plan, stale: true });
+        showToast(t.addedToRoadmap, true);
+        askWhy(lang === "ko" && r.titleKo ? r.titleKo : c.title, "like");
+      }
+      // the next career slides into the freed spot
+      const newcomer = remaining.filter((x) => x.id !== r.id)[showCount - 1];
+      if (newcomer) {
+        setRising([newcomer.id]);
+        setTimeout(() => setRising([]), 2000);
+      }
     } else {
       setBoard(board.filter((b) => b.id !== r.id));
     }
   }
 
+  // A decision made inside the roadmap: record it, and narrow careers / majors when it says so.
+  function decide(d: Decision, o: DecisionOption) {
+    const made = {
+      decisionId: d.id,
+      question: d.question,
+      kind: d.kind,
+      choice: o.label,
+      careerId: o.careerId,
+      at: new Date().toISOString(),
+    };
+    setPlan({ ...plan, decisions: [...plan.decisions.filter((x) => x.decisionId !== d.id), made], stale: true });
+
+    if (d.kind === "specialization" && o.title) {
+      const parent = board.find((b) => b.id === o.careerId);
+      const spec: BoardCareer = {
+        id: `spec-${o.title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
+        title: o.title,
+        titleKo: lang === "ko" ? o.label : undefined,
+        summary: o.summary ?? o.title,
+        skills: o.skills ?? [],
+        field: parent?.field,
+        onetCode: parent?.onetCode,
+        parentId: parent?.id,
+      };
+      setBoard((prev) => {
+        const without = prev.filter((b) => b.id !== spec.id);
+        return parent ? without.map((b) => (b.id === parent.id ? spec : b)) : [...without, spec];
+      });
+    }
+    if (d.kind === "major" || d.kind === "field") {
+      const hit = FIELDS.find(
+        (f) => o.label.toLowerCase().includes(f.toLowerCase()) || o.label.includes(fieldName(f, "ko"))
+      );
+      if (hit && !majors.includes(hit)) setMajors([...majors, hit]);
+    }
+  }
+
+  function openFromRoadmap(c: BoardCareer) {
+    setDetailFallback(c);
+    setOpenCareer(c.id);
+  }
+
+  function swapIntoBoard(outId: string) {
+    if (!pendingAdd) return;
+    const { r, c } = pendingAdd;
+    const nextLiked = { ...liked, [r.id]: "interested" };
+    delete nextLiked[outId];
+    setLiked(nextLiked);
+    setBoard([...board.filter((b) => b.id !== outId), { ...c, titleKo: r.titleKo }]);
+    if (plan.path) setPlan({ ...plan, stale: true });
+    setPendingAdd(null);
+    showToast(t.addedToRoadmap, true);
+    askWhy(lang === "ko" && r.titleKo ? r.titleKo : c.title, "like");
+  }
+
+  function askWhy(title: string, kind: "like" | "dislike") {
+    setMessages((m) => [...m, { role: "coach", text: kind === "like" ? t.whyLike(title) : t.whyDislike(title) }]);
+    setReasonAsk({ title, kind, text: "" });
+  }
+
+  function sendReason(text: string) {
+    if (!reasonAsk) return;
+    const answer = text.trim();
+    const { title, kind, mood } = reasonAsk;
+    setReasonAsk(null);
+    if (!answer) return;
+    callChat(answer, {
+      context:
+        kind === "activity"
+          ? `Reflection after trying the activity "${title}" (it felt ${mood === "good" ? "good" : mood === "bad" ? "bad" : "okay"})`
+          : `The user explained why they ${kind === "like" ? "added" : "are not interested in"} the career "${title}"`,
+    });
+  }
+
   function removeFromBoard(id: string) {
     setBoard(board.filter((b) => b.id !== id));
+    if (plan.path) setPlan({ ...plan, stale: true });
     const next = { ...liked };
     delete next[id];
     setLiked(next);
   }
 
   function onTaskFeedback(taskText: string, mood: "good" | "ok" | "bad") {
-    if (mood === "ok") return;
-    const trait: Trait = {
-      id: `task-${Date.now()}`,
-      label: (mood === "good" ? t.feltTrait.good : t.feltTrait.bad) + taskText,
-      type: mood === "good" ? "interest" : "dislike",
-      source: "Roadmap feedback",
-    };
-    const nextTraits = [...traits, trait];
-    setTraits(nextTraits);
-    callChat(`(user tried "${taskText}" and felt ${mood === "good" ? "great" : "bad"} about it)`, {
-      show: false,
-      traits: nextTraits,
-    });
+    // The coach asks what part felt that way, right in the chat.
+    setMessages((m) => [...m, { role: "coach", text: t.whatPartAsk(taskText, mood) }]);
+    setReasonAsk({ title: taskText, kind: "activity", mood, text: "" });
+  }
+
+
+
+  function hideField(f: string) {
+    const next = [...hiddenFields, f];
+    setHiddenFields(next);
+    setBeyond(beyond.filter((b) => getCareer(b.id, null)?.field !== f));
+    // re-rank so the rest of the list reflects it
+    callChat(`(user does not want recommendations in the field: ${f})`, { show: false, hiddenFields: next });
+  }
+
+  function unhideField(f: string) {
+    const next = hiddenFields.filter((x) => x !== f);
+    setHiddenFields(next);
+    callChat(`(user is open to the field again: ${f})`, { show: false, hiddenFields: next });
   }
 
   function hideCareer(id: string) {
@@ -391,12 +625,80 @@ export default function Home() {
     ? []
     : (Array.from(new Set(visible.map((r) => getCareer(r.id, null)?.field).filter(Boolean))) as string[]).slice(0, 3);
 
+
+  const authButton = user ? (
+    <span className="text-xs text-slate-600 flex items-center gap-2">
+      👤 {user.username}
+      <button onClick={logout} className="underline text-slate-500 hover:text-slate-800">
+        {t.logout}
+      </button>
+    </span>
+  ) : (
+    <button
+      onClick={() => {
+        setAuthMode("login");
+        setAuthError("");
+        setAuthOpen(true);
+      }}
+      className="text-xs rounded-full px-3 py-1 border bg-white text-slate-700 hover:bg-slate-50"
+    >
+      {t.login}
+    </button>
+  );
+
+  const authModal = authOpen && (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/30" onClick={() => setAuthOpen(false)} />
+      <div className="relative w-full max-w-sm bg-white rounded-2xl p-6 text-slate-900 shadow-xl">
+        <h2 className="text-xl font-semibold">{authMode === "login" ? t.login : t.signup}</h2>
+        {authMode === "signup" && <p className="text-xs text-slate-500 mt-1">{t.signupNote}</p>}
+        <div className="mt-4 space-y-3">
+          <input
+            value={authForm.username}
+            onChange={(e) => setAuthForm({ ...authForm, username: e.target.value })}
+            placeholder={t.username}
+            autoComplete="username"
+            className="w-full border rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-200"
+          />
+          <input
+            type="password"
+            value={authForm.password}
+            onChange={(e) => setAuthForm({ ...authForm, password: e.target.value })}
+            onKeyDown={(e) => e.key === "Enter" && submitAuth()}
+            placeholder={t.password}
+            autoComplete={authMode === "login" ? "current-password" : "new-password"}
+            className="w-full border rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-200"
+          />
+          {authError && <p className="text-sm text-red-600">{authError}</p>}
+          <button
+            onClick={submitAuth}
+            disabled={authBusy}
+            className="w-full bg-blue-600 text-white rounded-xl py-2 text-sm font-medium disabled:opacity-50"
+          >
+            {authMode === "login" ? t.login : t.signup}
+          </button>
+          <button
+            onClick={() => {
+              setAuthMode(authMode === "login" ? "signup" : "login");
+              setAuthError("");
+            }}
+            className="w-full text-xs text-slate-500 underline"
+          >
+            {authMode === "login" ? t.noAccount : t.haveAccount}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
   if (stage === "start") {
     return (
       <main className="min-h-screen bg-slate-50 text-slate-900 flex items-center justify-center p-6">
-        <div className="fixed top-4 right-4">
+        <div className="fixed top-4 right-4 flex items-center gap-3">
+          {authButton}
           <LangToggle lang={lang} setLang={setLang} />
         </div>
+        {authModal}
         <div className="max-w-3xl w-full text-center">
           <h1 className="text-3xl font-semibold">Career Navigator</h1>
           <p className="text-slate-500 mt-2">{t.tagline}</p>
@@ -448,9 +750,11 @@ export default function Home() {
           <button onClick={startOver} className="text-xs text-slate-500 hover:text-slate-800 underline">
             {t.startOver}
           </button>
+          {authButton}
           <LangToggle lang={lang} setLang={setLang} />
         </div>
       </header>
+      {authModal}
 
       <div className="grid md:grid-cols-5 gap-4 p-4 max-w-7xl mx-auto">
         {/* Chat */}
@@ -470,6 +774,27 @@ export default function Home() {
                 </div>
               </div>
             ))}
+            {reasonAsk && !loading && (
+              <div className="flex flex-wrap gap-1.5 pl-1">
+                {(reasonAsk.kind === "activity"
+                  ? t.activityChips[reasonAsk.mood ?? "ok"]
+                  : reasonAsk.kind === "like"
+                    ? t.likeChips
+                    : t.dislikeChips
+                ).map((chip) => (
+                  <button
+                    key={chip}
+                    onClick={() => sendReason(chip)}
+                    className="text-xs border border-blue-200 bg-blue-50 text-blue-800 rounded-full px-2.5 py-1 hover:bg-blue-100"
+                  >
+                    {chip}
+                  </button>
+                ))}
+                <button onClick={() => setReasonAsk(null)} className="text-xs text-slate-400 underline px-1">
+                  {t.skip}
+                </button>
+              </div>
+            )}
             {loading && <div className="text-sm text-slate-400">{t.thinking}</div>}
             {traits.length === 0 && !loading && (
               <button onClick={loadSample} className="text-sm text-blue-600 underline">
@@ -510,59 +835,47 @@ export default function Home() {
         {/* Results */}
         <section className="md:col-span-3 space-y-4 md:h-[80vh] md:overflow-y-auto">
           <div className="bg-white rounded-2xl border p-4">
-            <h2 className="font-semibold mb-3">{t.aboutMe}</h2>
-            <div className="mb-4">
-              <div className="text-xs text-slate-500 mb-1">{t.myMajor}</div>
-              <div className="flex flex-wrap gap-1.5">
-                {FIELDS.map((f) => (
-                  <button
-                    key={f}
-                    onClick={() => toggleMajor(f)}
-                    disabled={loading}
-                    className={`text-xs rounded-full px-3 py-1 border transition disabled:opacity-50 ${
-                      majors.includes(f) ? "bg-slate-900 text-white border-slate-900" : "text-slate-600 hover:bg-slate-50"
-                    }`}
-                  >
-                    {majors.includes(f) ? "✓ " : ""}
-                    {fieldName(f, lang)}
-                  </button>
-                ))}
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <h2 className="font-semibold">{t.aboutMe}</h2>
+                <p className="text-xs text-slate-500">
+                  {t.aboutSummary(
+                    traits.filter((x) => x.type === "strength").length,
+                    traits.filter((x) => x.type === "interest").length
+                  )}
+                  {majors.length > 0 && ` · ${majors.map((m) => fieldName(m, lang)).join(", ")}`}
+                </p>
               </div>
-              {majors.length === 0 && <p className="text-xs text-slate-400 mt-1">{t.noMajorYet}</p>}
+              <button
+                onClick={() => setAboutOpen(true)}
+                className="text-xs rounded-full px-3 py-1 border text-slate-700 hover:bg-slate-50"
+              >
+                {t.seeAll} →
+              </button>
             </div>
             {traits.length === 0 ? (
-              <p className="text-sm text-slate-400">{t.aboutEmpty}</p>
+              <p className="text-sm text-slate-400 mt-2">{t.aboutEmpty}</p>
             ) : (
-              (Object.keys(TYPE_STYLE) as TraitType[]).map((type) => {
-                const list = traits.filter((t) => t.type === type);
-                if (!list.length) return null;
-                return (
-                  <div key={type} className="mb-3">
-                    <div className="text-xs text-slate-500 mb-1">{t.types[type]}</div>
-                    <div className="flex flex-wrap gap-2">
-                      <AnimatePresence>
-                        {list.map((t) => (
-                          <motion.span
-                            key={t.id}
-                            initial={{ scale: 0.8, opacity: 0 }}
-                            animate={{ scale: 1, opacity: 1 }}
-                            exit={{ scale: 0.8, opacity: 0 }}
-                            className={`text-sm border rounded-full px-3 py-1 ${TYPE_STYLE[type]}`}
-                          >
-                            {t.label}
-                            <button
-                              onClick={() => setTraits(traits.filter((x) => x.id !== t.id))}
-                              className="ml-2 opacity-60 hover:opacity-100"
-                            >
-                              ×
-                            </button>
-                          </motion.span>
-                        ))}
-                      </AnimatePresence>
-                    </div>
-                  </div>
-                );
-              })
+              <div className="flex flex-wrap gap-1.5 mt-3">
+                {[...traits]
+                  .sort((x, y) => (x.type === "strength" ? -1 : 0) - (y.type === "strength" ? -1 : 0))
+                  .slice(0, 6)
+                  .map((tr) => (
+                    <motion.span
+                      key={tr.id}
+                      layout
+                      className={`text-xs border rounded-full px-2.5 py-0.5 ${TYPE_STYLE[tr.type]}`}
+                    >
+                      {tr.type === "strength" ? "💪 " : ""}
+                      {tr.label}
+                    </motion.span>
+                  ))}
+                {traits.length > 6 && (
+                  <button onClick={() => setAboutOpen(true)} className="text-xs text-slate-500 underline">
+                    +{traits.length - 6}
+                  </button>
+                )}
+              </div>
             )}
           </div>
 
@@ -589,9 +902,14 @@ export default function Home() {
               lang={lang}
               titleOf={(c) => (lang === "ko" && c.titleKo ? c.titleKo : c.title)}
               onRemove={removeFromBoard}
+              onOpen={openFromRoadmap}
+              onDecide={decide}
+              field={field}
               onFeedback={onTaskFeedback}
               plan={plan}
               setPlan={setPlan}
+              timeline={timeline}
+              setTimeline={setTimeline}
             />
           ) : (
           <>
@@ -617,7 +935,7 @@ export default function Home() {
                         onClick={() => confirmField(f)}
                         className="text-sm rounded-full px-3 py-1 bg-blue-600 text-white"
                       >
-                        {t.confirm(fieldName(f, lang))}
+                        {t.seeMoreIn(fieldName(f, lang))}
                       </button>
                     ) : (
                       <span key={f} className="text-sm rounded-full px-3 py-1 border text-slate-500">
@@ -626,6 +944,21 @@ export default function Home() {
                     )
                   )}
                 </div>
+              </div>
+            )}
+
+            {!field && hiddenFields.length > 0 && (
+              <div className="flex flex-wrap items-center gap-1.5 mb-3 text-xs text-slate-500">
+                {t.hiddenFields}
+                {hiddenFields.map((f) => (
+                  <button
+                    key={f}
+                    onClick={() => unhideField(f)}
+                    className="rounded-full px-2 py-0.5 border bg-slate-50 hover:bg-slate-100"
+                  >
+                    {fieldName(f, lang)} ×
+                  </button>
+                ))}
               </div>
             )}
 
@@ -673,27 +1006,22 @@ export default function Home() {
                               animate={{ width: `${r.score}%` }}
                             />
                           </div>
-                          <p className="text-sm italic text-slate-700 mt-2">{r.reason}</p>
+                          <p className="text-sm italic text-slate-700 mt-2">{r.reason || c.summary}</p>
                           <div className="flex gap-2 mt-3">
-                            {[
-                              ["interested", t.interested],
-                              ["maybe", t.maybe],
-                            ].map(([k, l]) => (
-                              <button
-                                key={k}
-                                onClick={() => markCareer(r, k, c)}
-                                className={`text-xs border rounded-full px-3 py-1 ${
-                                  liked[r.id] === k ? "bg-blue-600 text-white border-blue-600" : "text-slate-600"
-                                }`}
-                              >
-                                {l}
-                              </button>
-                            ))}
                             <button
-                              onClick={() => hideCareer(r.id)}
-                              className="text-xs border rounded-full px-3 py-1 text-slate-600"
+                              onClick={() => markCareer(r, "interested", c)}
+                              className="text-xs rounded-full px-3 py-1 bg-blue-600 text-white hover:bg-blue-700"
                             >
-                              {t.notForMe}
+                              {t.addToRoadmap}
+                            </button>
+                            <button
+                              onClick={() => {
+                                hideCareer(r.id);
+                                askWhy(lang === "ko" && r.titleKo ? r.titleKo : c.title, "dislike");
+                              }}
+                              className="text-xs border rounded-full px-3 py-1 text-slate-600 hover:bg-slate-50"
+                            >
+                              {t.notInterested}
                             </button>
                             <button
                               onClick={() => setOpenCareer(r.id)}
@@ -744,12 +1072,24 @@ export default function Home() {
                           {lang === "ko" && r.titleKo ? r.titleKo : c.title}
                         </h3>
                         <p className="text-xs italic text-slate-700 mt-2 flex-1">{r.reason}</p>
-                        <button
-                          onClick={() => setOpenCareer(r.id)}
-                          className="mt-3 self-start text-xs rounded-full px-3 py-1 bg-slate-900 text-white"
-                        >
-                          {t.explore}
-                        </button>
+                        <div className="mt-3 flex flex-wrap gap-1.5">
+                          {board.some((b) => b.id === r.id) ? (
+                            <span className="text-xs text-blue-700">✓ {t.tabRoadmap}</span>
+                          ) : (
+                            <button
+                              onClick={() => markCareer(r, "interested", c)}
+                              className="text-xs rounded-full px-3 py-1 bg-blue-600 text-white"
+                            >
+                              {t.addToRoadmap}
+                            </button>
+                          )}
+                          <button
+                            onClick={() => setOpenCareer(r.id)}
+                            className="text-xs rounded-full px-3 py-1 bg-slate-900 text-white"
+                          >
+                            {t.explore}
+                          </button>
+                        </div>
                       </motion.div>
                     );
                   })}
@@ -766,13 +1106,159 @@ export default function Home() {
         {t.footer}
       </footer>
 
+      {aboutOpen && (
+        <div className="fixed inset-0 z-40 flex justify-end">
+          <div className="absolute inset-0 bg-black/30" onClick={() => setAboutOpen(false)} />
+          <motion.aside
+            initial={{ x: 420 }}
+            animate={{ x: 0 }}
+            transition={{ type: "spring", stiffness: 300, damping: 32 }}
+            className="relative w-full max-w-md h-full bg-white shadow-xl overflow-y-auto p-6 text-slate-900"
+          >
+            <button
+              onClick={() => setAboutOpen(false)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-700 text-xl"
+            >
+              ×
+            </button>
+            <h2 className="text-xl font-semibold">{t.aboutMe}</h2>
+            <p className="text-xs text-slate-500 mt-1">{t.aboutHint}</p>
+
+            <div className="mt-5">
+              <div className="text-xs font-semibold text-slate-500 mb-1">{t.myMajor}</div>
+              <div className="flex flex-wrap gap-1.5">
+                {FIELDS.map((f) => (
+                  <button
+                    key={f}
+                    onClick={() => toggleMajor(f)}
+                    disabled={loading}
+                    className={`text-xs rounded-full px-3 py-1 border transition disabled:opacity-50 ${
+                      majors.includes(f) ? "bg-slate-900 text-white border-slate-900" : "text-slate-600 hover:bg-slate-50"
+                    }`}
+                  >
+                    {majors.includes(f) ? "✓ " : ""}
+                    {fieldName(f, lang)}
+                  </button>
+                ))}
+              </div>
+              {majors.length === 0 && <p className="text-xs text-slate-400 mt-1">{t.noMajorYet}</p>}
+            </div>
+
+            <div className="mt-6 space-y-4">
+              {(["strength", "interest", "value", "dislike"] as TraitType[]).map((type) => {
+                const list = traits.filter((x) => x.type === type);
+                return (
+                  <div key={type}>
+                    <div className="text-xs font-semibold text-slate-500 mb-1">
+                      {type === "strength" ? "💪 " : ""}
+                      {t.types[type]} ({list.length})
+                    </div>
+                    {list.length === 0 ? (
+                      <p className="text-xs text-slate-300">—</p>
+                    ) : (
+                      <div className="flex flex-wrap gap-2">
+                        <AnimatePresence>
+                          {list.map((tr) => (
+                            <motion.span
+                              key={tr.id}
+                              layout
+                              initial={{ scale: 0.8, opacity: 0 }}
+                              animate={{ scale: 1, opacity: 1 }}
+                              exit={{ scale: 0.8, opacity: 0 }}
+                              title={tr.source}
+                              className={`text-sm border rounded-full px-3 py-1 ${TYPE_STYLE[type]}`}
+                            >
+                              {tr.label}
+                              <button
+                                onClick={() => setTraits(traits.filter((x) => x.id !== tr.id))}
+                                className="ml-2 opacity-60 hover:opacity-100"
+                              >
+                                ×
+                              </button>
+                            </motion.span>
+                          ))}
+                        </AnimatePresence>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </motion.aside>
+        </div>
+      )}
+
+      {pendingAdd && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/30" onClick={() => setPendingAdd(null)} />
+          <div className="relative w-full max-w-md bg-white rounded-2xl p-6 text-slate-900 shadow-xl">
+            <h2 className="text-lg font-semibold">{t.boardFull}</h2>
+            <p className="text-sm text-slate-600 mt-1">
+              {t.boardFullDesc(
+                lang === "ko" && pendingAdd.r.titleKo ? pendingAdd.r.titleKo : pendingAdd.c.title
+              )}
+            </p>
+            <div className="mt-4 space-y-2 max-h-80 overflow-y-auto">
+              {[...board]
+                .map((b) => ({ b, score: ranking.find((x) => x.id === b.id)?.score ?? 0 }))
+                .sort((x, y) => x.score - y.score)
+                .map(({ b }, i) => (
+                  <div key={b.id} className="flex items-center gap-2 border rounded-xl px-3 py-2">
+                    <span className="flex-1 text-sm">
+                      {lang === "ko" && b.titleKo ? b.titleKo : b.title}
+                      {i === 0 && <span className="ml-2 text-[11px] text-amber-700">· {t.leastFit}</span>}
+                    </span>
+                    <button
+                      onClick={() => swapIntoBoard(b.id)}
+                      className="text-xs rounded-full px-3 py-1 bg-blue-600 text-white"
+                    >
+                      {t.swapOut}
+                    </button>
+                  </div>
+                ))}
+            </div>
+            <button onClick={() => setPendingAdd(null)} className="mt-4 w-full text-sm text-slate-500 underline">
+              {t.cancel}
+            </button>
+          </div>
+        </div>
+      )}
+
+      <AnimatePresence>
+        {toast && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+            className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 rounded-full bg-slate-900 text-white text-sm px-5 py-2.5 shadow-lg"
+          >
+            ✓ {toast.text}
+            {toast.action && (
+              <button
+                onClick={() => {
+                  setView("roadmap");
+                  setToast(null);
+                }}
+                className="underline text-blue-200"
+              >
+                {t.viewRoadmap}
+              </button>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {openCareer && (
         <CareerDetail
           careerId={openCareer}
           field={field}
           traits={traits}
           lang={lang}
-          onClose={() => setOpenCareer(null)}
+          fallback={detailFallback}
+          onClose={() => {
+            setOpenCareer(null);
+            setDetailFallback(null);
+          }}
         />
       )}
     </main>

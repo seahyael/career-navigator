@@ -29,12 +29,14 @@ export default function CareerDetail({
   field,
   traits,
   lang,
+  fallback = null,
   onClose,
 }: {
   careerId: string;
   field: string | null;
   traits: Trait[];
   lang: Lang;
+  fallback?: { id: string; title: string; summary: string; skills: string[]; onetCode?: string } | null;
   onClose: () => void;
 }) {
   const [data, setData] = useState<Detail | null>(null);
@@ -46,7 +48,7 @@ export default function CareerDetail({
     fetch("/api/career", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ careerId, field, traits, lang }),
+      body: JSON.stringify({ careerId, field, traits, lang, fallback }),
     })
       .then((r) => r.json())
       .then((d) => !cancelled && setData(d))

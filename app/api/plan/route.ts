@@ -1,7 +1,11 @@
-import { GoogleGenAI } from "@google/genai";
 import { promises as fs } from "fs";
 import path from "path";
 import { AI_LANG_RULE, type Lang } from "../../i18n";
+import { fetchOnet } from "../../lib/onet";
+import { generateJSON } from "../../lib/gemini";
+
+
+type Career = { id: string; title: string; summary?: string; skills?: string[]; onetCode?: string; field?: string };
 
 async function marketEvidence(ids: string[]) {
   try {
@@ -24,69 +28,112 @@ async function marketEvidence(ids: string[]) {
   }
 }
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+const PROMPT = `You are a career coach. Build ONE comprehensive roadmap for a student who is still exploring.
+They are interested in SEVERAL careers (careers). Do not pick one for them. The roadmap should:
+- Start broad: early stages build on the student's STRENGTHS and preferences and keep several careers open
+  (tasks that help many of their careers come first).
+- Narrow over time: place 1-3 DECISION points at natural moments (after they have tried something, before choosing courses or
+  declaring a major/minor, before internship applications). Decisions are how specialization, major and field get chosen
+  WHILE following the roadmap, not before.
+- End with a realistic job search for whatever they choose (start applying 6-9 months before graduation).
+- Respect decisions already made (decisions) and build on completed tasks (completedTasks; do not repeat them).
+  If they disliked a kind of task, offer a gentler alternative, but keep required ones.
+- Fit the work to timeline.hoursPerWeek and tie every stage to a real term on their calendar from today
+  (e.g. "Spring 2027", "Summer 2027"); if not in school, use calendar quarters.
+Use onetData (official requirements) and marketEvidence (counts from real LinkedIn postings) to decide WHAT to build.
+Never use postings to judge fit.
 
-const PROMPT = `You create a concrete action plan for a college student exploring careers.
-Inputs: interestedCareers (with id, title, summary, skills), userTraits, majors, completedTasks (with how they felt).
-Create 10-14 tasks.
-- period: "week" (this week), "semester" (this semester), or "year" (this year).
-- scope: "common" if the task helps EVERY interested career, otherwise the career id it belongs to.
-  Include at least 3 common tasks.
-- label:
-  "required" = needed to enter that career even if the student may not enjoy it (degree, core skill, portfolio, license).
-     Only mark required when the career's own summary/skills justify it. Never drop a required task because of feelings.
-  "recommended" = fits the student's traits and helps the career.
-  "explore" = a light way to test whether the career fits (watch a day-in-the-life video, talk to someone, try a mini project).
-- text: specific and doable (under 14 words). why: one short sentence.
-- marketEvidence (keyed by career id) holds counts from real LinkedIn postings. When a career has it,
-  base its required and recommended skill/certification tasks on the MOST frequent items there and set
-  evidence to the count, e.g. "11/15 postings". Never use postings to judge whether the career fits; only to decide what to build.
-  If there is no evidence for a task, set evidence to null.
-- Do not repeat completed tasks. If the student felt bad about a kind of task, offer a gentler alternative,
-  but keep required tasks and say why they matter.
+4-6 stages in time order. Each stage: title, when, goal (one sentence), milestone (concrete, countable),
+2-4 tasks, and optionally one decision.
+Task: text (specific, under 14 words), label ("required" = needed to get hired in the careers it serves, backed by O*NET or frequent
+in postings; "recommended" = builds on their strengths/preferences; "explore" = a light test of fit),
+why (one short sentence), careers (array of career ids it serves, or ["all"]), evidence ("11/15 postings", "O*NET", or null).
+Decision: question, why (one sentence: why decide now and how to decide), kind ("career" = which careers to keep,
+"specialization" = a more specific role inside one career, "major" = major/minor, "field"), and 2-4 options.
+Option: label (short), careerId (for kind "career" or the parent career of a specialization), and for "specialization" also
+title (common English job title), summary, skills (3 items).
+summary: 1-2 sentences on the overall journey and the target date for a first job.
 Valid JSON only, no trailing commas:
-{"tasks":[{"id":"kebab-id","text":"...","period":"week|semester|year","scope":"common|<career id>","label":"required|recommended|explore","why":"...","evidence":"11/15 postings or null"}]}`;
+{"summary":"...","stages":[{"id":"kebab","title":"...","when":"...","goal":"...","milestone":"...",
+ "tasks":[{"id":"kebab","text":"...","label":"required|recommended|explore","why":"...","careers":["..."],"evidence":"... or null"}],
+ "decision":{"id":"kebab","question":"...","why":"...","kind":"career|specialization|major|field",
+  "options":[{"label":"...","careerId":"...","title":"...","summary":"...","skills":["..."]}]}}]}`;
+
 
 export async function POST(req: Request) {
   try {
-    const { interestedCareers = [], traits = [], majors = [], completedTasks = [], lang = "en" } = await req.json();
-    const evidence = await marketEvidence((interestedCareers as { id: string }[]).map((c) => c.id));
+    const {
+      careers = [] as Career[],
+      traits = [],
+      majors = [],
+      field = null,
+      timeline = {},
+      completedTasks = [],
+      decisions = [],
+      lang = "en",
+    } = await req.json();
+    if (!careers.length) return Response.json({ error: "no careers" }, { status: 400 });
     const rule = AI_LANG_RULE[(lang as Lang) in AI_LANG_RULE ? (lang as Lang) : "en"];
+    const list = (careers as Career[]).slice(0, 6);
 
-    let lastError: unknown;
-    for (let attempt = 0; attempt < 2; attempt++) {
-      try {
-        const response = await ai.models.generateContent({
-          model: "gemini-3.5-flash-lite",
-          contents: JSON.stringify({ interestedCareers, userTraits: traits, majors, completedTasks, marketEvidence: evidence }),
-          config: {
-            systemInstruction: `${PROMPT}\n\nLANGUAGE: ${rule} Keep period, scope and label values in English exactly as specified.`,
-            responseMimeType: "application/json",
-            temperature: 0.5,
-            maxOutputTokens: 8192,
-          },
-        });
-        const raw = (response.text ?? "").replace(/```json|```/g, "").trim();
-        let data;
-        try {
-          data = JSON.parse(raw);
-        } catch {
-          data = JSON.parse(raw.slice(raw.indexOf("{"), raw.lastIndexOf("}") + 1).replace(/,\s*([}\]])/g, "$1"));
-        }
-        const ids = new Set((interestedCareers as { id: string }[]).map((c) => c.id));
-        const tasks = (data.tasks ?? []).filter(
-          (t: { scope: string; period: string; label: string }) =>
-            (t.scope === "common" || ids.has(t.scope)) &&
-            ["week", "semester", "year"].includes(t.period) &&
-            ["required", "recommended", "explore"].includes(t.label)
-        );
-        return Response.json({ tasks, evidenceFor: Object.keys(evidence) });
-      } catch (e) {
-        lastError = e;
-        console.warn(`plan attempt ${attempt + 1} failed:`, String(e).slice(0, 200));
-      }
-    }
-    throw lastError;
+    const [evidence, onetResults] = await Promise.all([
+      marketEvidence(list.map((c) => c.id)),
+      Promise.all(
+        list.slice(0, 3).map(async (c) => {
+          if (!c.onetCode) return null;
+          const r = await fetchOnet(c.onetCode);
+          return r.ok ? { careerId: c.id, data: JSON.stringify(r.data).slice(0, 3000) } : null;
+        })
+      ),
+    ]);
+    const onetData = onetResults.filter(Boolean);
+
+    const payload = {
+      careers: list.map((c) => ({ id: c.id, title: c.title, summary: c.summary, skills: c.skills, field: c.field })),
+      today: new Date().toISOString().slice(0, 10),
+      timeline,
+      userTraits: traits,
+      majors,
+      confirmedField: field,
+      completedTasks,
+      decisions,
+      onetData,
+      marketEvidence: evidence,
+    };
+
+    const data = await generateJSON(
+      `${PROMPT}\n\nLANGUAGE: ${rule} Keep label, kind, careers, careerId and option "title" values exactly as specified (English).`,
+      payload,
+      { temperature: 0.4 }
+    );
+    const labels = ["required", "recommended", "explore"];
+    const stamp = Date.now().toString(36);
+    const stages = (data.stages ?? []).map(
+      (
+        st: {
+          id?: string;
+          tasks?: { id?: string; label: string }[];
+          decision?: { id?: string; options?: unknown[] } | null;
+        },
+        i: number
+      ) => ({
+        ...st,
+        id: `st-${stamp}-${i}`,
+        tasks: (st.tasks ?? [])
+          .filter((t) => labels.includes(t.label))
+          .map((t, j) => ({ ...t, id: `tk-${stamp}-${i}-${j}` })),
+        decision: st.decision?.options?.length ? { ...st.decision, id: `dc-${stamp}-${i}` } : null,
+      })
+    );
+    return Response.json({
+      summary: data.summary ?? "",
+      stages,
+      sources: {
+        onet: onetData.length > 0,
+        linkedin: Object.keys(evidence).length > 0,
+        linkedinFor: Object.keys(evidence),
+      },
+    });
   } catch (error) {
     console.error("plan error:", error);
     return Response.json({ error: String(error) }, { status: 500 });

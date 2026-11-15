@@ -1,35 +1,9 @@
-import { GoogleGenAI } from "@google/genai";
-import { findAnyCareer } from "../../lib/pool";
+import { findAnyCareer, type Career } from "../../lib/pool";
+import { fetchOnet } from "../../lib/onet";
+import { generateJSON } from "../../lib/gemini";
 import { AI_LANG_RULE, type Lang } from "../../i18n";
 
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-
-// O*NET Web Services v2: API key goes in the X-API-Key header.
-// If the base URL ever differs, set ONET_BASE_URL in .env.local.
-const ONET_BASE = process.env.ONET_BASE_URL ?? "https://api-v2.onetcenter.org";
-
-
-async function fetchOnet(code: string) {
-  const key = process.env.ONET_API_KEY;
-  if (!key) return { ok: false as const, reason: "ONET_API_KEY is missing in .env.local" };
-
-  const urls = [`${ONET_BASE}/mnm/careers/${code}/report`, `${ONET_BASE}/mnm/careers/${code}/`];
-  const errors: string[] = [];
-  for (const url of urls) {
-    try {
-      const res = await fetch(url, {
-        headers: { "X-API-Key": key, Accept: "application/json" },
-        next: { revalidate: 86400 },
-      });
-      if (res.ok) return { ok: true as const, data: await res.json(), url };
-      errors.push(`${res.status} at ${url}`);
-    } catch (e) {
-      errors.push(`${String(e)} at ${url}`);
-    }
-  }
-  return { ok: false as const, reason: errors.join(" | ") };
-}
 
 const PROMPT = `You help a student explore ONE career.
 Facts about the job (tasks, skills, education, outlook) must come ONLY from the O*NET data given.
@@ -54,9 +28,10 @@ strengthsMatch: up to 3, only traits from the user's list. gaps: up to 3. nextSt
 
 export async function POST(req: Request) {
   try {
-    const { careerId, field = null, traits = [], lang = "en" } = await req.json();
+    const { careerId, field = null, traits = [], lang = "en", fallback = null } = await req.json();
     const rule = AI_LANG_RULE[(lang as Lang) in AI_LANG_RULE ? (lang as Lang) : "en"];
-    const career = await findAnyCareer(careerId, field);
+    // Specializations made in the roadmap are not in our list, so the client sends them along.
+    const career: Career | undefined = (await findAnyCareer(careerId, field)) ?? (fallback?.title ? fallback : undefined);
     if (!career) return Response.json({ error: "Unknown career" }, { status: 404 });
 
     const onet = career.onetCode ? await fetchOnet(career.onetCode) : { ok: false as const, reason: "no O*NET code" };
@@ -69,13 +44,7 @@ export async function POST(req: Request) {
       onetData: onetText,
     });
 
-    const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash-lite",
-      contents: userPart,
-      config: { systemInstruction: `${PROMPT}\n\nLANGUAGE: ${rule}`, responseMimeType: "application/json" },
-    });
-    const text = (response.text ?? "").replace(/```json|```/g, "").trim();
-    const explore = JSON.parse(text);
+    const explore = await generateJSON(`${PROMPT}\n\nLANGUAGE: ${rule}`, userPart);
 
     return Response.json({
       title: career.title,
