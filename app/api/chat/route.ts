@@ -8,6 +8,7 @@ export const maxDuration = 60;
 import { AI_LANG_RULE, type Lang } from "../../i18n";
 
 type Trait = { id: string; label: string; type: string; source: string };
+type Conflict = { label: string; newLabel: string; newType: string; question: string };
 type Rank = { id: string; score: number; reason: string; titleKo?: string };
 
 
@@ -23,6 +24,14 @@ about themselves (what they enjoyed, found hard or easy, noticed about themselve
 upgrades: if the NEW message shows that an existing "interest" in currentTraits is also something they are GOOD at
 (they practice it often, finished real things with it, get praise, people ask them for help with it), list it so it moves to strengths:
 [{"label":"the existing trait label exactly","newLabel":"a short strength wording, or null to keep the label"}]. Otherwise [].
+conflicts: if the NEW message contradicts a trait already in currentTraits (e.g. existing interest "baking" but now
+"I don't like baking anymore", or an existing strength they now say they are bad at), do NOT change it yourself and do NOT
+put the contradicting trait in newTraits. List it instead (at most 1):
+[{"label":"the existing trait label exactly","newLabel":"short wording for the new trait","newType":"strength|interest|value|dislike",
+  "question":"one friendly question that names both and asks whether to update, e.g. 'Earlier you said you love baking, but now
+  you don't. Should I update that?'"}]. Otherwise [].
+resolve: only when pendingConflict is given (the coach just asked that question). "update" if the new message agrees the
+old trait should change, "keep" if they want to keep the old one, null if the message does not answer it.
 reply: 1-2 friendly sentences reacting to what they said, connecting it to something they said earlier when possible.
 followUp: ONE light, specific question, or null.
  - If contextNote is given (the user just explained a choice or reflected on an activity), react to it; ask a follow-up only if
@@ -31,9 +40,11 @@ followUp: ONE light, specific question, or null.
    a strength (e.g. "Do friends ever ask you to design things for them?").
  - Otherwise ask only about a real gap (values, dislikes, work style), and prefer null when the profile is already rich.
  Never ask the same question twice (see earlierMessages).
+If conflicts is not empty, set followUp to null (the conflict question is asked instead).
 JSON only:
 {"newTraits":[{"id":"kebab-id","label":"...","type":"strength|interest|value|dislike","source":"the user's own words"}],
  "upgrades":[{"label":"...","newLabel":"... or null"}],
+ "conflicts":[{"label":"...","newLabel":"...","newType":"...","question":"..."}],"resolve":"update|keep|null",
  "reply":"...","followUp":"... or null"}`;
 
 // Step 2: rank using the WHOLE profile, not the latest message.
@@ -79,6 +90,7 @@ export async function POST(req: Request) {
       majors = [] as string[],
       context = null,
       pool: clientPool = [] as Career[],
+      pendingConflict = null as Conflict | null,
     } = await req.json();
     const rule = AI_LANG_RULE[(lang as Lang) in AI_LANG_RULE ? (lang as Lang) : "en"];
 
@@ -98,12 +110,15 @@ export async function POST(req: Request) {
       upgrades?: { label: string; newLabel?: string | null }[];
       reply?: string;
       followUp?: string | null;
+      conflicts?: Conflict[];
+      resolve?: string | null;
     } = {};
     try {
       extracted = await askJSON(`${EXTRACT_PROMPT}\n\nLANGUAGE: ${rule}`, {
         newMessage: message,
         contextNote: context,
         currentTraits: trimTraits(traits as Trait[]),
+        pendingConflict,
         earlierMessages: (history as string[]).slice(-15),
       });
     } catch (e) {
@@ -111,14 +126,26 @@ export async function POST(req: Request) {
     }
 
     const known = new Set((traits as Trait[]).map((t) => t.label.toLowerCase()));
+    // A contradiction is never applied silently: the coach asks first.
+    const conflicts: Conflict[] = (extracted.conflicts ?? [])
+      .filter((c) => c?.label && c?.newLabel && c?.question && known.has(c.label.toLowerCase()))
+      .slice(0, 1);
+    const conflictWords = new Set(conflicts.flatMap((c) => [c.label.toLowerCase(), c.newLabel.toLowerCase()]));
     const newTraits: Trait[] = (extracted.newTraits ?? []).filter(
-      (t: Trait) => t?.label && !known.has(t.label.toLowerCase())
+      (t: Trait) => t?.label && !known.has(t.label.toLowerCase()) && !conflictWords.has(t.label.toLowerCase())
     );
+    const pc = pendingConflict as Conflict | null;
+    const resolve = pc && (extracted.resolve === "update" || extracted.resolve === "keep") ? extracted.resolve : null;
     // Interests confirmed as strengths move over before ranking.
     const upgrades = (extracted.upgrades ?? []).filter((u) => u?.label);
     const upgraded = (traits as Trait[]).map((t) => {
       const u = upgrades.find((x) => x.label.toLowerCase() === t.label.toLowerCase());
-      return u && t.type === "interest" ? { ...t, type: "strength", label: u.newLabel || t.label } : t;
+      if (u && t.type === "interest") return { ...t, type: "strength", label: u.newLabel || t.label };
+      // The user confirmed the change the coach asked about.
+      if (resolve === "update" && pc && t.label.toLowerCase() === pc.label.toLowerCase()) {
+        return { ...t, label: pc.newLabel, type: pc.newType || t.type, source: message };
+      }
+      return t;
     });
     const allTraits = [...upgraded, ...newTraits];
 
@@ -220,7 +247,10 @@ export async function POST(req: Request) {
       beyond,
       pool: dedupe([...dynamicPool, ...candidates.filter((c) => c.id.startsWith("onet-"))]),
       reply: extracted.reply ?? "",
-      followUp: extracted.followUp ?? null,
+      followUp: conflicts.length ? null : extracted.followUp ?? null,
+      conflict: conflicts[0] ?? null,
+      replaced: resolve === "update" ? pc : null,
+      conflictDone: !!resolve,
     });
   } catch (error) {
     console.error("chat error:", error);

@@ -92,6 +92,13 @@ export default function Home() {
   const [stage, setStage] = useState<"start" | "test" | "chat">("start");
   const [openCareer, setOpenCareer] = useState<string | null>(null);
   const [majorInput, setMajorInput] = useState("");
+  // A new message that contradicts an older trait: the coach asks before changing anything.
+  const [pendingConflict, setPendingConflict] = useState<{
+    label: string;
+    newLabel: string;
+    newType: string;
+    question: string;
+  } | null>(null);
   // LinkedIn analysis runs automatically, one career at a time, for every career on the roadmap.
   const marketDone = useRef<Set<string>>(new Set());
   const marketBusy = useRef(false);
@@ -384,6 +391,7 @@ export default function Home() {
           majors: useMajors,
           context: opts.context ?? null,
           pool,
+          pendingConflict,
           history: messages.filter((m) => m.role === "user").map((m) => m.text).slice(-15),
           prevRanking: useField === field ? ranking : [],
           feedback: {
@@ -411,7 +419,19 @@ export default function Home() {
         }
         return tr;
       });
-      setTraits([...updated, ...fresh]);
+      // The user agreed to update a trait the coach asked about.
+      const rep = data.replaced as { label: string; newLabel: string; newType: string } | null;
+      const finalTraits = rep
+        ? updated.map((tr) =>
+            tr.label.toLowerCase() === rep.label.toLowerCase()
+              ? { ...tr, label: rep.newLabel, type: (rep.newType || tr.type) as TraitType, source: message }
+              : tr
+          )
+        : updated;
+      setTraits([...finalTraits, ...fresh]);
+      if (rep) showToast(t.traitUpdated(rep.label, rep.newLabel));
+      if (data.conflictDone) setPendingConflict(null);
+      if (data.conflict) setPendingConflict(data.conflict);
       if (promoted.length) showToast(t.promoted(promoted.join(", ")));
 
       const oldPos = new Map(ranking.map((r, i) => [r.id, i]));
@@ -429,7 +449,8 @@ export default function Home() {
 
       const replies: Msg[] = [];
       if (data.reply) replies.push({ role: "coach", text: data.reply });
-      if (data.followUp) replies.push({ role: "coach", text: data.followUp });
+      if (data.conflict?.question) replies.push({ role: "coach", text: data.conflict.question });
+      else if (data.followUp) replies.push({ role: "coach", text: data.followUp });
       setMessages((m) => [...m, ...replies]);
     } catch (e) {
       console.warn("chat failed:", e);
@@ -712,7 +733,7 @@ export default function Home() {
         </div>
         {authModal}
         <div className="max-w-3xl w-full text-center">
-          <h1 className="text-3xl font-semibold">Career Navigator</h1>
+          <h1 className="text-3xl font-semibold">Find Your Courses</h1>
           <p className="text-slate-500 mt-2">{t.tagline}</p>
           <div className="grid md:grid-cols-2 gap-4 mt-10 text-left">
             <button
@@ -752,7 +773,7 @@ export default function Home() {
     <main className="min-h-screen bg-slate-50 text-slate-900">
       <header className="px-6 py-4 border-b bg-white flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold">Career Navigator</h1>
+          <h1 className="text-xl font-semibold">Find Your Courses</h1>
           <p className="text-sm text-slate-500">{t.chatTagline}</p>
         </div>
         <div className="flex items-center gap-3">
@@ -805,6 +826,19 @@ export default function Home() {
                 <button onClick={() => setReasonAsk(null)} className="text-xs text-slate-400 underline px-1">
                   {t.skip}
                 </button>
+              </div>
+            )}
+            {pendingConflict && !reasonAsk && !loading && (
+              <div className="flex flex-wrap gap-1.5 pl-1">
+                {t.conflictChips.map((chip) => (
+                  <button
+                    key={chip}
+                    onClick={() => callChat(chip)}
+                    className="text-xs border border-amber-200 bg-amber-50 text-amber-800 rounded-full px-2.5 py-1 hover:bg-amber-100"
+                  >
+                    {chip}
+                  </button>
+                ))}
               </div>
             )}
             {loading && <div className="text-sm text-slate-400">{t.thinking}</div>}
