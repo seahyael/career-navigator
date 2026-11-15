@@ -45,6 +45,8 @@ export const T = {
     timelineFromChat: "Set this by telling the coach in the chat, e.g. \"I'm a 2nd-year, graduating summer 2030\".",
     whyFits: "Why it fits you",
     keySkills: "Key skills (O*NET)",
+    linkedinWaiting: (ready: number, total: number) =>
+      `Collecting live LinkedIn postings for your careers (${ready}/${total} ready)… the roadmap unlocks when they're in.`,
     trySample: "Try a sample student",
     sampleMsg: "(Sample student: no major yet; likes drawing, organizing, listening to friends, and how things work)",
     finishedTest: "(Finished the interest test: ",
@@ -241,6 +243,8 @@ export const T = {
     timelineFromChat: "채팅에서 코치에게 말하면 설정돼요.",
     whyFits: "나와 맞는 이유",
     keySkills: "핵심 스킬 (O*NET)",
+    linkedinWaiting: (ready: number, total: number) =>
+      `Collecting live LinkedIn postings for your careers (${ready}/${total} ready)… the roadmap unlocks when they're in.`,
     trySample: "예시 학생으로 체험하기",
     sampleMsg: "(예시 학생: 아직 전공 없음, 그림·정리·친구 고민 들어주기·원리 탐구를 좋아함)",
     finishedTest: "(흥미 검사 완료: ",

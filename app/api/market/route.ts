@@ -22,10 +22,30 @@ type Posting = {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-async function fetchPostings(keyword: string): Promise<Posting[]> {
+// Bright Data sometimes needs more than one request's time. We keep its snapshot id and continue next time.
+class StillCollecting extends Error {
+  constructor(public snapshotId: string) {
+    super("Bright Data is still collecting");
+  }
+}
+
+async function pollSnapshot(snapshotId: string, headers: Record<string, string>): Promise<Posting[]> {
+  for (let i = 0; i < 13; i++) {
+    await sleep(3000);
+    const snap = await fetch(`${BD}/snapshot/${snapshotId}?format=json`, { headers });
+    if (snap.status === 200) {
+      const data = await snap.json();
+      if (Array.isArray(data)) return data;
+    }
+  }
+  throw new StillCollecting(snapshotId);
+}
+
+async function fetchPostings(keyword: string, pendingSnapshot?: string): Promise<Posting[]> {
   const key = process.env.BRIGHTDATA_API_KEY;
   if (!key) throw new Error("BRIGHTDATA_API_KEY is missing in .env.local");
   const headers = { Authorization: `Bearer ${key}`, "Content-Type": "application/json" };
+  if (pendingSnapshot) return pollSnapshot(pendingSnapshot, headers);
 
   const res = await fetch(
     `${BD}/scrape?dataset_id=${DATASET}&type=discover_new&discover_by=keyword&include_errors=true&format=json&limit_per_input=15`,
@@ -42,18 +62,10 @@ async function fetchPostings(keyword: string): Promise<Posting[]> {
   // Fast path: the scrape endpoint answered with the postings directly.
   if (Array.isArray(body)) return body;
 
-  // Slow path: it handed back a snapshot id; poll until ready (up to ~45s).
+  // Slow path: it handed back a snapshot id; poll until ready (about 40s per request, then continue next time).
   const snapshotId = body?.snapshot_id;
   if (!snapshotId) throw new Error(`Bright Data: unexpected response ${JSON.stringify(body).slice(0, 200)}`);
-  for (let i = 0; i < 15; i++) {
-    await sleep(3000);
-    const snap = await fetch(`${BD}/snapshot/${snapshotId}?format=json`, { headers });
-    if (snap.status === 200) {
-      const data = await snap.json();
-      if (Array.isArray(data)) return data;
-    }
-  }
-  throw new Error("Bright Data is still collecting. Try again in a minute.");
+  return pollSnapshot(snapshotId, headers);
 }
 
 const PROMPT = `You read real LinkedIn job postings for one career and tell a student what employers ask for right now.
@@ -74,15 +86,28 @@ export async function POST(req: Request) {
     const rule = AI_LANG_RULE[(lang as Lang) in AI_LANG_RULE ? (lang as Lang) : "en"];
 
     let entry = await getMarket(careerId);
+    const pendingSnapshot = (entry?.analysis as { pendingSnapshot?: string } | null | undefined)?.pendingSnapshot;
     const stale = entry && Date.now() - new Date(entry.fetchedAt).getTime() > STALE_DAYS * 864e5;
-    // Opening a career only reads the cache; scraping runs when a career is added to the roadmap.
-    if (!entry && cachedOnly) return Response.json({ pending: true });
+    // Opening a career only reads the cache; collecting runs when a career is added to the roadmap.
+    if ((!entry || pendingSnapshot) && cachedOnly) return Response.json({ pending: true });
     let fetchedNow = false;
-    if (!cachedOnly && (!entry || refresh || stale)) {
+    if (!cachedOnly && (!entry || refresh || stale || pendingSnapshot)) {
       fetchedNow = true;
-      const postings = await fetchPostings(title);
-      entry = { fetchedAt: new Date().toISOString(), postings, analysis: null };
-      await setMarket(careerId, entry);
+      try {
+        const postings = await fetchPostings(title, pendingSnapshot);
+        entry = { fetchedAt: new Date().toISOString(), postings, analysis: null };
+        await setMarket(careerId, entry);
+      } catch (e) {
+        if (e instanceof StillCollecting) {
+          await setMarket(careerId, {
+            fetchedAt: new Date().toISOString(),
+            postings: [],
+            analysis: { pendingSnapshot: e.snapshotId },
+          });
+          return Response.json({ pending: true });
+        }
+        throw e;
+      }
     }
 
     if (!entry) return Response.json({ pending: true });

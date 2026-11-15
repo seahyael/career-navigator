@@ -84,10 +84,9 @@ export default function Home() {
     newType: string;
     question: string;
   } | null>(null);
-  // LinkedIn analysis runs automatically, one career at a time, for every career on the roadmap.
+  // LinkedIn postings are collected automatically for every career on the roadmap (all at once).
   const marketDone = useRef<Set<string>>(new Set());
-  const marketBusy = useRef(false);
-  const [marketTick, setMarketTick] = useState(0);
+  const [marketStatus, setMarketStatus] = useState<Record<string, "waiting" | "ready" | "failed">>({});
   const [majors, setMajors] = useState<string[]>([]);
   const [beyond, setBeyond] = useState<Rank[]>([]);
   const [showCount, setShowCount] = useState(SHOW_COUNT);
@@ -294,23 +293,36 @@ export default function Home() {
   }
 
   useEffect(() => {
-    if (!loaded || marketBusy.current) return;
-    const next = board.find((b) => !marketDone.current.has(b.id));
-    if (!next) return;
-    marketBusy.current = true;
-    marketDone.current.add(next.id);
-    fetch("/api/market", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ careerId: next.id, title: next.title, scrapeOnly: true }),
-    })
-      .catch((e) => console.warn("LinkedIn scan failed:", e))
-      .finally(() => {
-        marketBusy.current = false;
-        setMarketTick((n) => n + 1); // move on to the next career
-      });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loaded, board, marketTick]);
+    if (!loaded) return;
+    for (const b of board) {
+      if (marketDone.current.has(b.id)) continue;
+      marketDone.current.add(b.id);
+      setMarketStatus((m) => ({ ...m, [b.id]: "waiting" }));
+      (async () => {
+        // Bright Data can take a few minutes: keep asking while it says "still collecting" (about 6 minutes max).
+        for (let attempt = 0; attempt < 8; attempt++) {
+          try {
+            const res = await fetch("/api/market", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ careerId: b.id, title: b.title, scrapeOnly: true }),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (res.ok && data.ok) {
+              setMarketStatus((m) => ({ ...m, [b.id]: "ready" }));
+              return;
+            }
+            if (!data.pending && !res.ok && res.status !== 504) break; // a real error: stop waiting
+          } catch (e) {
+            console.warn("LinkedIn collect failed:", e);
+          }
+          await new Promise((r) => setTimeout(r, 5000));
+        }
+        setMarketStatus((m) => ({ ...m, [b.id]: "failed" }));
+      })();
+    }
+  }, [loaded, board]);
+  const linkedinWaiting = board.filter((b) => (marketStatus[b.id] ?? "waiting") === "waiting").length;
 
   async function startOver() {
     if (!window.confirm(t.startOverConfirm)) return;
@@ -890,6 +902,7 @@ export default function Home() {
               setPlan={setPlan}
               timeline={timeline}
               setTimeline={setTimeline}
+              linkedin={{ waiting: linkedinWaiting, total: board.length }}
             />
           ) : (
           <>

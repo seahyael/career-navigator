@@ -78,6 +78,7 @@ export default function Roadmap({
   setPlan,
   timeline,
   setTimeline,
+  linkedin = { waiting: 0, total: 0 },
 }: {
   board: Career[];
   traits: Trait[];
@@ -93,6 +94,7 @@ export default function Roadmap({
   setPlan: (p: Plan) => void;
   timeline: Timeline;
   setTimeline: (t: Timeline) => void;
+  linkedin?: { waiting: number; total: number };
 }) {
   const t = T[lang];
   const [building, setBuilding] = useState(false);
@@ -201,7 +203,7 @@ export default function Roadmap({
             <h2 className="font-semibold">🗺️ {t.tabRoadmap}</h2>
             <button
               onClick={build}
-              disabled={building}
+              disabled={building || linkedin.waiting > 0}
               className={`rounded-xl px-4 py-2 text-sm text-white disabled:opacity-50 ${
                 plan.stale ? "bg-amber-500 animate-pulse" : "bg-blue-600"
               }`}
@@ -210,6 +212,11 @@ export default function Roadmap({
             </button>
           </div>
           {plan.stale && path && !building && <p className="text-xs text-amber-700 mt-2">{t.staleNote}</p>}
+          {linkedin.waiting > 0 && (
+            <p className="text-sm text-sky-700 mt-3 animate-pulse">
+              {t.linkedinWaiting(linkedin.total - linkedin.waiting, linkedin.total)}
+            </p>
+          )}
           {building && <p className="text-sm text-slate-500 mt-3 animate-pulse">{t.building}</p>}
           {error && <p className="text-sm text-red-600 mt-2">{error}</p>}
 
